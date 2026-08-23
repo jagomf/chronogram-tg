@@ -1,5 +1,7 @@
 # Chronogram TG
 
+[![CI](https://github.com/YOUR_USERNAME/chronogram-tg/actions/workflows/ci.yml/badge.svg)](https://github.com/YOUR_USERNAME/chronogram-tg/actions/workflows/ci.yml)
+
 **Rescue your Telegram photos and videos with their original dates.**
 
 Telegram doesn't save chat photos to your phone's gallery, and if you save

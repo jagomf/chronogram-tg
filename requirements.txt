@@ -1,8 +1,6 @@
-# Pinned versions verified against PyPI on 2026-08-23.
+# What the app needs to run. Pinned versions verified against PyPI on
+# 2026-08-23. Development tools live in requirements-dev.txt.
 telethon==1.44.0
 customtkinter==6.0.0
 piexif==1.1.3
 python-dotenv==1.2.3
-
-# Development / testing
-pytest==9.1.1

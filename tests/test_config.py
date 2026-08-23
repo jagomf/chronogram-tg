@@ -4,8 +4,8 @@ import pytest
 
 from chronogram_tg import config
 from chronogram_tg.config import (
-    Credentials,
     ConfigError,
+    Credentials,
     Settings,
     load_credentials,
     load_settings,

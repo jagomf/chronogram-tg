@@ -40,8 +40,17 @@ project runs on.
 ```bash
 .venv/bin/python -m chronogram_tg      # run the app
 .venv/bin/python -m pytest             # run the tests
-.venv/bin/pip install -r requirements.txt
+.venv/bin/python -m ruff check .       # lint (must pass before committing)
+.venv/bin/python -m ruff format .      # apply the house formatting
+.venv/bin/pip install -r requirements-dev.txt   # runtime deps + pytest + ruff
 ```
+
+`requirements.txt` holds only what the app needs to run — end users install
+that one. Development tools are in `requirements-dev.txt`, which includes
+it. CI (`.github/workflows/ci.yml`) runs the tests on Linux, macOS and
+Windows against Python 3.11 and 3.14, runs `ruff check`, and fails if any
+credential, session or downloaded file is ever tracked by git. Formatting is
+not enforced by CI, so run `ruff format` yourself to keep diffs clean.
 
 On Windows the equivalents live in `.venv\Scripts\` instead of `.venv/bin/`.
 

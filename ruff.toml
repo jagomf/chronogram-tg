@@ -1,0 +1,12 @@
+# Formatting and linting rules. Run: .venv/bin/python -m ruff check .
+line-length = 100
+target-version = "py311"
+
+[lint]
+select = [
+    "E",   # pycodestyle errors
+    "F",   # pyflakes
+    "I",   # import sorting
+    "B",   # bugbear: likely bugs and footguns
+    "UP",  # pyupgrade: modern syntax for the target version
+]
