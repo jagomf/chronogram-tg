@@ -29,17 +29,34 @@ jobs:
       - run: ruff check .
 
   test:
-    # The app must behave identically on macOS and Windows (see
-    # docs/DECISIONS.md), and the README promises Python 3.11 or newer, so
-    # both ends of that promise are exercised. GUI code is verified by hand:
-    # runners have no display, and the plan keeps GUI logic out of the tests.
+    # Deliberately four jobs, not a full matrix. Linux covers both ends of
+    # the README's "Python 3.11 or newer" promise; the other two platforms
+    # run the current version only. Windows earns its place because nobody
+    # can test it by hand and it is where this project's code really
+    # differs: filenames rejecting characters that are legal elsewhere, a
+    # case-insensitive filesystem that affects resume-by-filename, and files
+    # that cannot be replaced while open (the .part rename and the ffmpeg
+    # temp file). macOS is the platform end users are most likely to share
+    # with the owner, so it gets a clean-machine run instead of relying only
+    # on his local one. Runners are free on public repositories; on a
+    # private fork macOS minutes cost about ten times Linux ones, so this is
+    # the first job to reconsider if that ever changes.
+    # GUI code is verified manually - runners have no display, and the plan
+    # keeps GUI logic out of the tests.
     name: Tests (${{ matrix.os }}, Python ${{ matrix.python-version }})
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, macos-latest, windows-latest]
-        python-version: ["3.11", "3.14"]
+        include:
+          - os: ubuntu-latest
+            python-version: "3.11"
+          - os: ubuntu-latest
+            python-version: "3.14"
+          - os: windows-latest
+            python-version: "3.14"
+          - os: macos-latest
+            python-version: "3.14"
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-python@v7

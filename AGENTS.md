@@ -47,10 +47,13 @@ project runs on.
 
 `requirements.txt` holds only what the app needs to run — end users install
 that one. Development tools are in `requirements-dev.txt`, which includes
-it. CI (`.github/workflows/ci.yml`) runs the tests on Linux, macOS and
-Windows against Python 3.11 and 3.14, runs `ruff check`, and fails if any
+it. CI (`.github/workflows/ci.yml`) runs the tests on Linux (Python 3.11 and
+3.14), Windows (3.14) and macOS (3.14), runs `ruff check`, and fails if any
 credential, session or downloaded file is ever tracked by git. Formatting is
-not enforced by CI, so run `ruff format` yourself to keep diffs clean.
+not enforced by CI, so run `ruff format` yourself to keep diffs clean. Keep
+the job count low — the repository is public, where GitHub-hosted runners
+are free, but a private fork would be billed, and macOS minutes cost about
+ten times Linux ones.
 
 On Windows the equivalents live in `.venv\Scripts\` instead of `.venv/bin/`.
 
