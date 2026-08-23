@@ -1,6 +1,6 @@
 # Chronogram TG
 
-[![CI](https://github.com/YOUR_USERNAME/chronogram-tg/actions/workflows/ci.yml/badge.svg)](https://github.com/YOUR_USERNAME/chronogram-tg/actions/workflows/ci.yml)
+[![CI](https://github.com/jagomf/chronogram-tg/actions/workflows/ci.yml/badge.svg)](https://github.com/jagomf/chronogram-tg/actions/workflows/ci.yml)
 
 **Rescue your Telegram photos and videos with their original dates.**
 
@@ -50,7 +50,7 @@ paste these commands one by one.
 ### 1. Get the code
 
 ```bash
-git clone https://github.com/YOUR_USERNAME/chronogram-tg.git
+git clone https://github.com/jagomf/chronogram-tg.git
 cd chronogram-tg
 ```
 
