@@ -149,6 +149,16 @@ find the file, you are in the wrong folder — `cd` into the project folder
   limits. If Telegram asks the app to wait (flood control), it waits and
   continues automatically. Interrupted? Run again — it resumes.
 
+### Console commands
+
+Useful for checking that your credentials work, or for diagnosing a problem
+without the window in the way:
+
+```bash
+.venv/bin/python -m chronogram_tg chats            # log in and list your chats
+.venv/bin/python -m chronogram_tg chats --limit 5
+```
+
 ### Getting the photos onto the phone
 
 Connect the phone via USB (or use any file-transfer method) and copy **all**
