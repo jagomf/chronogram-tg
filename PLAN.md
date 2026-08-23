@@ -219,14 +219,16 @@ all Telegram work; GUI thread communicates via
 ### Task 6 — App shell and async bridge
 
 - **Objective:** main window skeleton + thread/asyncio plumbing.
-- **Prerequisite:** the interpreter running the app must have Tk support —
-  verify with `python -c "import tkinter"` *before* writing any GUI code.
-  Many Pythons built by pyenv or Homebrew lack `_tkinter` and fail here
-  (the project owner's default pyenv 3.14.6 does, as of 2026-08-23). Fixes:
-  install Python from python.org (bundles Tk 8.6, what the README tells
-  users to do) or `brew install python-tk@<version>` for a Homebrew
-  interpreter, then recreate the venv with it. Do not fall back to macOS's
-  `/usr/bin/python3` — its Tk 8.5 renders CustomTkinter badly.
+- **Prerequisite (already satisfied on the owner's machine):** the
+  interpreter must have Tk support. The project venv was rebuilt on
+  2026-08-23 with Homebrew's Python 3.14.7 (`brew install python-tk@3.14`,
+  which brings Tcl/Tk 9.0), and a smoke test confirmed CustomTkinter 6.0.0
+  creates `CTk`, `CTkLabel`, `CTkButton` and `CTkProgressBar` widgets and
+  detects the system appearance mode. If the venv is ever recreated, use
+  `/opt/homebrew/opt/python@3.14/bin/python3.14` — pyenv's 3.14.6, the
+  machine's default `python3`, has no `_tkinter`. Verify with
+  `python -c "import tkinter"` before writing GUI code. Never fall back to
+  macOS's `/usr/bin/python3`: its Tk 8.5 renders CustomTkinter badly.
 - **Files:** `chronogram_tg/gui/__init__.py`, `gui/app.py`, `__main__.py`.
 - **Details:** `python -m chronogram_tg` (no subcommand) now opens the main
   window: placeholder rows for chat selector, scope, destination, videos

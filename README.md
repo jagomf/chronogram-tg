@@ -34,7 +34,8 @@ their true chronological place.
   [python.org/downloads](https://www.python.org/downloads/) — the python.org
   installer includes Tk, the toolkit the app's window needs. (Pythons from
   pyenv or Homebrew often omit it; you can check yours with
-  `python3 -c "import tkinter"`, which should print nothing at all.)
+  `python3 -c "import tkinter"`, which should print nothing at all. On a
+  Homebrew Python, `brew install python-tk@3.14` adds it.)
 - **ffmpeg** — *only if you want videos*. Photos work without it.
 - A **Telegram API key** (`api_id` + `api_hash`) — free, takes 2 minutes,
   instructions below.
