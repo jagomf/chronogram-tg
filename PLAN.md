@@ -3,9 +3,9 @@
 **Audience:** the implementing agent (Claude Opus 5).
 **Read first:** [AGENTS.md](AGENTS.md) and [docs/DECISIONS.md](docs/DECISIONS.md).
 
-**Progress:** tasks 1–2 implemented. Task 2 still needs the owner's live
-confirmation (it requires a real `.env` and an interactive login). Update
-this line as part of each task's commit.
+**Progress:** tasks 1–3 done; task 2 confirmed live by the owner on
+2026-08-23 (login, chat listing, and a second run that asked nothing).
+Update this line as part of each task's commit.
 
 ## Ground rules (apply to every task)
 

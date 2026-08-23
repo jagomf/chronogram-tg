@@ -84,6 +84,14 @@ def test_unusable_settings_file_does_not_stop_the_app(tmp_path, body):
     assert load_settings(path) == Settings()
 
 
+@pytest.mark.parametrize("template", ["", "photos/{date}", "{year}"])
+def test_an_unusable_stored_pattern_falls_back_to_the_default(tmp_path, template):
+    path = tmp_path / "settings.json"
+    path.write_text(json.dumps({"filename_template": template}), encoding="utf-8")
+
+    assert load_settings(path) == Settings()
+
+
 def test_unknown_settings_keys_are_ignored(tmp_path):
     path = tmp_path / "settings.json"
     path.write_text(json.dumps({"filename_template": "{date}", "legacy": "x"}), encoding="utf-8")

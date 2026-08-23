@@ -14,6 +14,8 @@ from pathlib import Path
 
 from dotenv import dotenv_values
 
+from .naming import PIXEL_TEMPLATE, TemplateError, validate_template
+
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 ENV_FILE = PROJECT_ROOT / ".env"
 SESSION_FILE = PROJECT_ROOT / "chronogram.session"
@@ -22,9 +24,9 @@ SETTINGS_FILE = PROJECT_ROOT / "settings.json"
 API_ID_KEY = "TELEGRAM_API_ID"
 API_HASH_KEY = "TELEGRAM_API_HASH"
 
-# naming.py (task 3) owns the token vocabulary and the preset list; this is
-# only the fallback used when no settings file exists yet.
-DEFAULT_FILENAME_TEMPLATE = "PXL_{date}_{time}{ms}"
+# naming.py owns the token vocabulary and the preset list; this is only the
+# fallback used when no settings file exists yet.
+DEFAULT_FILENAME_TEMPLATE = PIXEL_TEMPLATE
 
 MISSING_CREDENTIALS_MESSAGE = """\
 Telegram credentials not found.
@@ -110,7 +112,11 @@ def load_settings(path: Path | str | None = None) -> Settings:
 
     known = {field: stored[field] for field in Settings.__dataclass_fields__ if field in stored}
     settings = Settings(**{k: v for k, v in known.items() if isinstance(v, str)})
-    if not settings.filename_template.strip():
+    try:
+        # A hand-edited file could hold a pattern the app cannot use. Falling
+        # back beats failing later, halfway through a download.
+        validate_template(settings.filename_template)
+    except TemplateError:
         settings.filename_template = DEFAULT_FILENAME_TEMPLATE
     return settings
 
