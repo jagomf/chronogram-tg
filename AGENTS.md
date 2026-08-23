@@ -1,0 +1,70 @@
+# AGENTS.md — contract for AI agents working on this repo
+
+## What this project is
+
+Chronogram TG is a small cross-platform (macOS + Windows) desktop app that
+downloads the photos/videos of a Telegram chat and stamps each file with the
+**original message date** (EXIF / MP4 `creation_time`, in UTC), using
+camera-style filenames, so the files sort chronologically once moved to a
+phone's `/DCIM/Camera` and backed up by Google Photos. Primary use is a
+one-off rescue of a family photo history, operated by a non-Python user.
+
+Read these before writing any code:
+
+- **[PLAN.md](PLAN.md)** — the implementation plan. Work task by task, in
+  order, exactly as specified there.
+- **[docs/DECISIONS.md](docs/DECISIONS.md)** — closed design decisions with
+  rationale. **You must not reverse, reopen or silently work around any of
+  them.** If one seems wrong or impossible, stop and ask the user.
+
+## Hard security rules (non-negotiable)
+
+- **NEVER commit**: `*.session` files, `.env`, any `api_id`/`api_hash`
+  value, or downloaded media. `.gitignore` already covers them — do not
+  weaken it, and never use `git add -f` on ignored files.
+- A Telethon `.session` file grants **full access to the Telegram account**.
+  Treat it like a password. Never print its contents, copy it elsewhere, or
+  include it in logs, tests or fixtures.
+- Never hardcode credentials in source, tests or docs. Real credentials live
+  only in the local `.env`.
+- Before every commit, check `git status` for accidentally staged secrets.
+
+## How to run and test
+
+```bash
+python3 -m venv .venv && source .venv/bin/activate   # Windows: py -m venv .venv; .venv\Scripts\Activate.ps1
+pip install -r requirements.txt
+python -m chronogram_tg          # run the app
+pytest                           # run unit tests
+```
+
+Manual testing against Telegram requires the user's credentials and
+interactive login — you cannot do it yourself. When a task needs live
+verification, prepare it and ask the user to run the exact command; always
+test against a **small throwaway chat** first, never the real family chat.
+
+## Conventions
+
+- **Language:** everything — code, comments, docs, UI strings — in English
+  (decision D13). No i18n layer.
+- **Dates:** all timestamps (filenames, EXIF, `creation_time`, mtime) in
+  **UTC**, no timezone conversion (D15). Telegram already provides UTC.
+- **Filenames:** deterministic, derived from the message date via the
+  pattern engine; Pixel preset (`PXL_YYYYMMDD_HHMMSSmmm.ext`) by default.
+  Determinism is what makes resume-by-filename work — never add random
+  components.
+- **EXIF:** write `DateTimeOriginal` with piexif on compressed photos; on
+  image documents, respect existing EXIF and only fill in when absent (D3).
+- **Videos:** ffmpeg with `-c copy` only (never re-encode). ffmpeg is
+  optional and detected on the system PATH at startup.
+- **Anti-flood pacing:** use Telethon takeout sessions, keep short pauses
+  between items, catch `FloodWaitError` and wait it out. Never remove or
+  shorten this behaviour to "speed things up".
+- **Threading:** downloads run in a worker thread; the UI thread never
+  blocks. Pause/cancel flags are checked between items.
+- **Commits:** one atomic commit per completed and verified PLAN.md task
+  (`Task N: <summary>`). Never batch several tasks into one commit.
+- **Dependencies:** pinned in `requirements.txt`. Do not add a dependency
+  without a strong reason; if you must, pin it and record why in the commit.
+- Keep the code plain and readable — the future maintainer may be a
+  non-expert. No cleverness, no premature abstraction.

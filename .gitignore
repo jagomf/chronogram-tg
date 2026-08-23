@@ -1,0 +1,25 @@
+# ── Secrets & sessions ─ NEVER commit these ─────────────────────────
+# A Telethon *.session file grants FULL access to the Telegram account.
+# Treat it like a password.
+*.session
+*.session-journal
+.env
+
+# ── Downloaded media (user data, never belongs in the repo) ──────────
+downloads/
+
+# ── Python ───────────────────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+build/
+dist/
+.pytest_cache/
+
+# ── OS / editor noise ────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
