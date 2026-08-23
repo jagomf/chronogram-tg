@@ -57,21 +57,32 @@ into the unzipped folder instead.)
 
 ### 2. Create an isolated Python environment and install dependencies
 
+This puts the app's dependencies in a `.venv` folder inside the project,
+without touching the rest of your system.
+
 macOS:
 
 ```bash
 python3 -m venv .venv
-source .venv/bin/activate
-pip install -r requirements.txt
+.venv/bin/pip install -r requirements.txt
 ```
 
 Windows (PowerShell):
 
 ```powershell
 py -m venv .venv
-.venv\Scripts\Activate.ps1
-pip install -r requirements.txt
+.venv\Scripts\pip install -r requirements.txt
 ```
+
+> **The `.venv/bin/` prefix is not a typo.** It is what tells your computer
+> to use the project's own Python instead of whichever one it would pick by
+> default. Keep using it — the app is always run as
+> `.venv/bin/python -m chronogram_tg` (macOS) or
+> `.venv\Scripts\python -m chronogram_tg` (Windows), from the project
+> folder. There is nothing to "activate" and nothing to remember between
+> sessions. (If you already know about `source .venv/bin/activate`, it
+> works too and lets you drop the prefix — but it must be repeated in every
+> new terminal window, so the commands in this README don't rely on it.)
 
 ### 3. (Optional) Install ffmpeg for video support
 
@@ -108,11 +119,22 @@ TELEGRAM_API_HASH=0123456789abcdef0123456789abcdef
 
 ## Usage
 
-With the environment activated (step 2), run:
+Open a terminal in the project folder and run — macOS:
 
 ```bash
-python -m chronogram_tg
+.venv/bin/python -m chronogram_tg
 ```
+
+Windows (PowerShell):
+
+```powershell
+.venv\Scripts\python -m chronogram_tg
+```
+
+That single line is the whole thing: it works in any freshly opened
+terminal, with no previous step to remember. If it complains that it cannot
+find the file, you are in the wrong folder — `cd` into the project folder
+(the one containing `README.md`) and try again.
 
 - **First run:** enter your phone number, the code Telegram sends you, and
   your 2FA password if you have one. The session is remembered — you won't

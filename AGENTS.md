@@ -31,12 +31,32 @@ Read these before writing any code:
 
 ## How to run and test
 
+**Always invoke the project's own interpreter by its explicit path.** Never
+call a bare `python`, `python3`, `pip` or `pytest`: shell state does not
+persist between tool calls, so an activated virtualenv is not something you
+can rely on, and the machine's default interpreter is not the one this
+project runs on.
+
 ```bash
-python3 -m venv .venv && source .venv/bin/activate   # Windows: py -m venv .venv; .venv\Scripts\Activate.ps1
-pip install -r requirements.txt
-python -m chronogram_tg          # run the app
-pytest                           # run unit tests
+.venv/bin/python -m chronogram_tg      # run the app
+.venv/bin/python -m pytest             # run the tests
+.venv/bin/pip install -r requirements.txt
 ```
+
+On Windows the equivalents live in `.venv\Scripts\` instead of `.venv/bin/`.
+
+If `.venv` is missing, recreate it with a **Tk-capable** interpreter — the
+GUI needs it and the machine's default `python3` (pyenv 3.14.6) has no
+`_tkinter`:
+
+```bash
+/opt/homebrew/opt/python@3.14/bin/python3.14 -m venv .venv
+.venv/bin/pip install -r requirements.txt
+.venv/bin/python -c "import tkinter"    # must print nothing
+```
+
+The README documents the generic, machine-independent version of this for
+end users; keep both in sync when the run commands change.
 
 Manual testing against Telegram requires the user's credentials and
 interactive login — you cannot do it yourself. When a task needs live
