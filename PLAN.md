@@ -219,6 +219,14 @@ all Telegram work; GUI thread communicates via
 ### Task 6 — App shell and async bridge
 
 - **Objective:** main window skeleton + thread/asyncio plumbing.
+- **Prerequisite:** the interpreter running the app must have Tk support —
+  verify with `python -c "import tkinter"` *before* writing any GUI code.
+  Many Pythons built by pyenv or Homebrew lack `_tkinter` and fail here
+  (the project owner's default pyenv 3.14.6 does, as of 2026-08-23). Fixes:
+  install Python from python.org (bundles Tk 8.6, what the README tells
+  users to do) or `brew install python-tk@<version>` for a Homebrew
+  interpreter, then recreate the venv with it. Do not fall back to macOS's
+  `/usr/bin/python3` — its Tk 8.5 renders CustomTkinter badly.
 - **Files:** `chronogram_tg/gui/__init__.py`, `gui/app.py`, `__main__.py`.
 - **Details:** `python -m chronogram_tg` (no subcommand) now opens the main
   window: placeholder rows for chat selector, scope, destination, videos

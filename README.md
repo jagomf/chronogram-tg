@@ -31,8 +31,10 @@ their true chronological place.
 ## Requirements
 
 - **Python 3.11 or newer.** On macOS and Windows, install it from
-  [python.org/downloads](https://www.python.org/downloads/) (the python.org
-  installer includes everything the app's window system needs).
+  [python.org/downloads](https://www.python.org/downloads/) — the python.org
+  installer includes Tk, the toolkit the app's window needs. (Pythons from
+  pyenv or Homebrew often omit it; you can check yours with
+  `python3 -c "import tkinter"`, which should print nothing at all.)
 - **ffmpeg** — *only if you want videos*. Photos work without it.
 - A **Telegram API key** (`api_id` + `api_hash`) — free, takes 2 minutes,
   instructions below.

@@ -8,6 +8,9 @@
 # ── Downloaded media (user data, never belongs in the repo) ──────────
 downloads/
 
+# ── Local user preferences ───────────────────────────────────────────
+settings.json
+
 # ── Python ───────────────────────────────────────────────────────────
 __pycache__/
 *.py[cod]

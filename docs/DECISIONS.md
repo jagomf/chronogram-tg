@@ -118,3 +118,15 @@ Confirmed with the user on 2026-08-23. The supported way to run the app is
 Python + `requirements.txt`, with a README any non-Python user can follow
 verbatim. A PyInstaller-based `.app`/`.exe` build exists in the plan only as
 an explicitly optional, low-priority final task.
+
+## D17 — Flat layout: the package lives at the repository root
+
+Confirmed with the user on 2026-08-23. The importable package is
+`chronogram_tg/` at the repository root, not `src/chronogram_tg/`. The
+underscore spelling is forced by Python (hyphens are invalid in import
+names), and the flat layout keeps `pip install -r requirements.txt` +
+`python -m chronogram_tg` working with no packaging configuration — which is
+what the README promises a non-Python user. The PyPA-recommended `src`
+layout protects against importing the source tree instead of the installed
+distribution, a problem that only arises when publishing to PyPI; we do not
+(D16).
