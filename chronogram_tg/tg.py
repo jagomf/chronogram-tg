@@ -72,7 +72,9 @@ class RepairedSQLiteSession(SQLiteSession):
     the next load crashes trying to build an AuthKey out of an integer. So
     the sqlite row cannot be trusted with the takeout id at all: this class
     keeps it in a sidecar file next to the session and always writes None
-    into the row. Remove once Telethon fixes the swap.
+    into the row. Fixed upstream on 2026-08-19 (codeberg.org/Lonami/Telethon
+    commit b6a451e, after v1.44.0): remove this class when bumping to the
+    first release that contains it.
     """
 
     def __init__(self, session_id=None):

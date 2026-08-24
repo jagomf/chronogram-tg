@@ -89,6 +89,12 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="skip videos even when ffmpeg is available",
     )
+    download.add_argument(
+        "--clean",
+        action="store_true",
+        help="delete this download's files from the destination first, "
+        "then download everything again",
+    )
     return parser
 
 
@@ -139,8 +145,9 @@ def print_summary(summary: Summary) -> None:
     print()
     if summary.cancelled:
         print("Cancelled. Run the same command again to resume where it left off.")
-        print("(To start over from scratch instead, empty the destination folder first.)")
+        print("(To start over from scratch instead, run it again with --clean.)")
     lines = [
+        ("removed first by --clean", summary.cleaned),
         ("downloaded", summary.downloaded),
         ("already there from a previous run", summary.already_there),
         ("videos skipped", summary.videos_skipped),
@@ -200,6 +207,7 @@ async def run_download(credentials: Credentials, arguments) -> None:
             since=arguments.since,
             until_exclusive=until_exclusive,
             include_videos=include_videos,
+            clean=arguments.clean,
             on_progress=show_progress,
             on_status=show_status,
         )
@@ -233,8 +241,8 @@ def main(argv: list[str] | None = None) -> int:
         return 1
     except (KeyboardInterrupt, EOFError):
         print(
-            "\nCancelled. Run the same command again to resume, or empty the "
-            "destination folder first to start over from scratch.",
+            "\nCancelled. Run the same command again to resume, or add --clean "
+            "to start over from scratch.",
             file=sys.stderr,
         )
         return 1

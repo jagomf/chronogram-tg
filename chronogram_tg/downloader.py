@@ -69,6 +69,7 @@ class Summary:
     already_there: int = 0  # resume: found on disk and skipped
     videos_skipped: int = 0  # videos excluded by choice or missing ffmpeg
     missing: int = 0  # deleted from the chat between scan and download
+    cleaned: int = 0  # files removed up front by --clean
     dated_by_file_time_only: int = 0
     errors: list[str] = field(default_factory=list)
     cancelled: bool = False
@@ -186,6 +187,7 @@ async def download_chat(
     since: datetime | None = None,
     until_exclusive: datetime | None = None,
     include_videos: bool = True,
+    clean: bool = False,
     control: DownloadControl | None = None,
     on_progress: ProgressCallback | None = None,
     on_status: StatusCallback | None = None,
@@ -207,6 +209,18 @@ async def download_chat(
         say(f"{summary.total} items to consider.")
     if not plan:
         return summary
+
+    if clean:
+        # Start over: remove exactly the files this run would produce (plus
+        # their temporaries) and nothing else, so pointing --dest at a folder
+        # with unrelated files in it cannot destroy them.
+        for item in plan:
+            for stale in (destination / item.filename, _temporary_path(destination, item.filename)):
+                if stale.exists():
+                    stale.unlink()
+                    summary.cleaned += 1
+        if summary.cleaned:
+            say(f"Removed {summary.cleaned} files from a previous run; starting over.")
 
     dealt_with = 0
     async with source.takeout_downloads() as downloads:

@@ -233,3 +233,26 @@ def test_the_scan_status_includes_the_total_size_when_known(tmp_path):
     run(source, tmp_path, on_status=heard.append)
 
     assert any("2 items to consider, 2.0 MB in total." == message for message in heard)
+
+
+def test_clean_removes_this_downloads_files_and_nothing_else(tmp_path):
+    (tmp_path / "IMG_20240815_143022_000.jpg").write_bytes(b"from an old run")
+    (tmp_path / "IMG_20240815_143022_000.part.jpg").write_bytes(b"half a download")
+    (tmp_path / "holiday-plans.txt").write_bytes(b"unrelated, keep me")
+    source = FakeSource([record(1)])
+
+    summary = run(source, tmp_path, clean=True)
+
+    assert (summary.cleaned, summary.downloaded, summary.already_there) == (2, 1, 0)
+    assert (tmp_path / "holiday-plans.txt").read_bytes() == b"unrelated, keep me"
+    assert (tmp_path / "IMG_20240815_143022_000.jpg").read_bytes() != b"from an old run"
+
+
+def test_clean_on_a_fresh_folder_is_a_quiet_no_op(tmp_path):
+    source = FakeSource([record(1)])
+    heard = []
+
+    summary = run(source, tmp_path, clean=True, on_status=heard.append)
+
+    assert (summary.cleaned, summary.downloaded) == (0, 1)
+    assert not any("Removed" in message for message in heard)

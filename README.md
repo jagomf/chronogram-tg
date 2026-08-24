@@ -164,9 +164,10 @@ without the window in the way:
 The `download` command shows a progress counter, waits politely whenever
 Telegram asks it to, and can be interrupted at any time with `Ctrl+C` —
 running it again resumes where it left off, because files already in the
-destination folder are recognised by name and skipped. That also means
-*starting over* is just a matter of emptying the destination folder (or
-pointing `--dest` at a fresh one). The very first download may ask you to
+destination folder are recognised by name and skipped. To *start over*
+instead, add `--clean`: it first deletes this download's own files from the
+destination (other files in the folder are left alone) and then downloads
+everything again. The very first download may ask you to
 approve a *data export request* notification in the Telegram app; approve
 it and run the command again.
 
