@@ -9,13 +9,14 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import logging
 import sys
 from datetime import UTC, datetime, timedelta
 from getpass import getpass
 from pathlib import Path
 
 from . import __version__
-from .config import ConfigError, Credentials, load_credentials, load_settings
+from .config import LOG_FILE, ConfigError, Credentials, load_credentials, load_settings
 from .downloader import Summary, download_chat, human_size
 from .metadata import detect_ffmpeg
 from .tg import LoginError, TelegramError, TelegramSession
@@ -262,8 +263,26 @@ async def run_download(credentials: Credentials, arguments) -> None:
     await with_session(credentials, action)
 
 
+def configure_logging() -> None:
+    """Send Telethon's operational log to a file instead of the console.
+
+    Telethon warns about reconnects and auth-key retries while downloading;
+    harmless, but printed to the console they tear through the progress
+    line. The file keeps them for diagnosis.
+    """
+    telethon_logger = logging.getLogger("telethon")
+    if telethon_logger.handlers:
+        return
+    handler = logging.FileHandler(LOG_FILE, encoding="utf-8", delay=True)
+    handler.setFormatter(logging.Formatter("%(asctime)s %(levelname)s %(name)s: %(message)s"))
+    telethon_logger.addHandler(handler)
+    telethon_logger.setLevel(logging.WARNING)
+    telethon_logger.propagate = False
+
+
 def main(argv: list[str] | None = None) -> int:
     arguments = build_parser().parse_args(argv)
+    configure_logging()
 
     try:
         credentials = load_credentials()

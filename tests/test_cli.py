@@ -62,3 +62,17 @@ def test_the_baseline_tick_has_no_dangling_separator():
     from chronogram_tg.__main__ import format_progress
 
     assert format_progress(0, 161, "") == "  0%: 0 / 161"
+
+
+def test_telethon_logging_goes_to_a_file_not_the_console():
+    import logging
+
+    from chronogram_tg.__main__ import configure_logging
+
+    configure_logging()
+    configure_logging()  # a second call must not stack handlers
+
+    telethon_logger = logging.getLogger("telethon")
+    assert telethon_logger.propagate is False
+    assert len(telethon_logger.handlers) == 1
+    assert isinstance(telethon_logger.handlers[0], logging.FileHandler)

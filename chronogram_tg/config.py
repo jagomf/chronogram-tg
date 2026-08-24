@@ -20,6 +20,7 @@ PROJECT_ROOT = Path(__file__).resolve().parent.parent
 ENV_FILE = PROJECT_ROOT / ".env"
 SESSION_FILE = PROJECT_ROOT / "chronogram.session"
 SETTINGS_FILE = PROJECT_ROOT / "settings.json"
+LOG_FILE = PROJECT_ROOT / "chronogram.log"
 
 API_ID_KEY = "TELEGRAM_API_ID"
 API_HASH_KEY = "TELEGRAM_API_HASH"
