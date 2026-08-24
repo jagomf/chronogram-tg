@@ -28,6 +28,7 @@ from telethon.errors import (
     PhoneNumberInvalidError,
     SessionPasswordNeededError,
     TakeoutInitDelayError,
+    TakeoutInvalidError,
 )
 from telethon.tl.types import (
     DocumentAttributeFilename,
@@ -244,10 +245,13 @@ class TelegramSession:
         Takeout is Telegram's blessed channel for bulk exports (D10). It is
         deliberately not finalized on exit: the takeout id lives in the
         session file, so an interrupted rescue resumes into the same export
-        instead of asking Telegram to authorise a new one every run.
+        instead of asking Telegram to authorise a new one every run. The
+        scope arguments may only be sent when *initiating* an export -
+        Telethon refuses them while one is already open - so reconnecting to
+        an existing takeout must ask for it with no arguments at all.
         """
-        try:
-            async with self.client.takeout(
+        if self.client.session.takeout_id is None:
+            takeout = self.client.takeout(
                 finalize=False,
                 users=True,
                 chats=True,
@@ -255,7 +259,11 @@ class TelegramSession:
                 channels=True,
                 files=True,
                 max_file_size=TAKEOUT_MAX_FILE_SIZE,
-            ) as proxy:
+            )
+        else:
+            takeout = self.client.takeout(finalize=False)
+        try:
+            async with takeout as proxy:
                 yield MediaDownloads(self.client, proxy)
         except TakeoutInitDelayError as error:
             hours = max(1, int(error.seconds) // 3600)
@@ -336,7 +344,16 @@ class MediaDownloads:
         message = await self._client.get_messages(chat_id, ids=message_id)
         if message is None or (message.photo is None and message.document is None):
             return False
-        result = await self._takeout.download_media(message, file=str(path))
+        try:
+            result = await self._takeout.download_media(message, file=str(path))
+        except TakeoutInvalidError as error:
+            # The reused export expired on Telegram's side. Clear it so the
+            # next run authorises a fresh one, and stop the run cleanly.
+            await self._client.end_takeout(success=False)
+            raise TelegramError(
+                "The Telegram export session had expired. It has been reset - "
+                "run the same command again to continue."
+            ) from error
         return result is not None
 
 

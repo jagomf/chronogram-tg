@@ -187,3 +187,19 @@ def test_the_plan_is_deterministic_between_runs():
         "IMG_20240815_143022_001.jpg",
         "VID_20240815_143022_002.mp4",
     ]
+
+
+def test_session_level_trouble_stops_the_run_instead_of_repeating_per_file(tmp_path):
+    # An expired export would otherwise be logged once per remaining item.
+    from chronogram_tg.tg import TelegramError
+
+    class ExpiredSource(FakeSource):
+        async def download(self, chat_id, message_id, path):
+            raise TelegramError("The Telegram export session had expired.")
+
+    source = ExpiredSource([record(1), record(2, seconds_later=1)])
+
+    with pytest.raises(TelegramError):
+        run(source, tmp_path)
+
+    assert not list(tmp_path.glob("*.part*"))

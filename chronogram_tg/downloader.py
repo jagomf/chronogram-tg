@@ -37,7 +37,13 @@ from .metadata import (
     stamp_video,
 )
 from .naming import NameAllocator
-from .tg import IMAGE_DOCUMENT_KIND, PHOTO_KIND, VIDEO_KIND, MediaRecord
+from .tg import (
+    IMAGE_DOCUMENT_KIND,
+    PHOTO_KIND,
+    VIDEO_KIND,
+    MediaRecord,
+    TelegramError,
+)
 
 # The prudent pace of decision D10: one item, then a breath.
 ITEM_PAUSE_SECONDS = 1.0
@@ -215,6 +221,12 @@ async def download_chat(
                 _stamp(item, temporary, summary)
                 temporary.replace(target)
                 summary.downloaded += 1
+            except TelegramError:
+                # Session-level trouble (expired export, lost login) affects
+                # every remaining item: stop the run instead of logging it
+                # once per file.
+                temporary.unlink(missing_ok=True)
+                raise
             except Exception as error:  # one broken item must not sink the rescue
                 temporary.unlink(missing_ok=True)
                 summary.errors.append(f"{item.filename}: {error}")
