@@ -12,7 +12,11 @@ Nothing here ever logs its contents or the credentials.
 
 from __future__ import annotations
 
+import mimetypes
+from contextlib import asynccontextmanager
 from dataclasses import dataclass
+from datetime import datetime
+from pathlib import Path
 
 from telethon import TelegramClient
 from telethon.errors import (
@@ -23,9 +27,37 @@ from telethon.errors import (
     PhoneCodeInvalidError,
     PhoneNumberInvalidError,
     SessionPasswordNeededError,
+    TakeoutInitDelayError,
+)
+from telethon.tl.types import (
+    DocumentAttributeFilename,
+    DocumentAttributeSticker,
+    DocumentAttributeVideo,
+    InputMessagesFilterDocument,
+    InputMessagesFilterPhotoVideo,
 )
 
 from .config import SESSION_FILE, Credentials
+
+PHOTO_KIND = "photo"
+IMAGE_DOCUMENT_KIND = "image_document"
+VIDEO_KIND = "video"
+
+# Generous cap so no family video is left out of the takeout scope.
+TAKEOUT_MAX_FILE_SIZE = 4 * 1024**3
+
+# Preferred over mimetypes for the formats Telegram actually sends, so the
+# extension does not depend on the operating system's mime registry.
+KNOWN_EXTENSIONS = {
+    "image/jpeg": "jpg",
+    "image/png": "png",
+    "image/webp": "webp",
+    "image/gif": "gif",
+    "image/heic": "heic",
+    "video/mp4": "mp4",
+    "video/quicktime": "mov",
+    "video/webm": "webm",
+}
 
 
 class TelegramError(Exception):
@@ -169,3 +201,144 @@ class TelegramSession:
         """End the session on Telegram's side and delete the local session file."""
         await self.client.log_out()
         self._client = None
+
+    async def scan_media(
+        self,
+        chat_id: int,
+        since: datetime | None = None,
+        until_exclusive: datetime | None = None,
+    ) -> list[MediaRecord]:
+        """List the chat's photos and videos, oldest first.
+
+        Uses Telegram's server-side media filters instead of walking every
+        message, so scanning a years-long chat costs a handful of requests.
+        Two filters are needed because "photos and videos" does not include
+        images sent as files; the results are merged and ordered by message
+        id, which grows chronologically - a deterministic order is what keeps
+        the allocated filenames stable between runs (D11).
+        """
+        found: dict[int, MediaRecord] = {}
+        try:
+            for media_filter in (InputMessagesFilterPhotoVideo(), InputMessagesFilterDocument()):
+                async for message in self.client.iter_messages(
+                    chat_id, filter=media_filter, offset_date=until_exclusive
+                ):
+                    if since is not None and message.date < since:
+                        break
+                    record = describe_media(message)
+                    if record is not None:
+                        found[record.message_id] = record
+        except FloodWaitError as error:
+            raise TelegramError(_flood_wait_message(error)) from error
+        except ValueError as error:
+            raise TelegramError(
+                f"Chat {chat_id} was not found. Run the chats command and use "
+                f"one of the ids it prints."
+            ) from error
+        return sorted(found.values(), key=lambda record: record.message_id)
+
+    @asynccontextmanager
+    async def takeout_downloads(self):
+        """Open (or resume) a takeout session and yield a MediaDownloads.
+
+        Takeout is Telegram's blessed channel for bulk exports (D10). It is
+        deliberately not finalized on exit: the takeout id lives in the
+        session file, so an interrupted rescue resumes into the same export
+        instead of asking Telegram to authorise a new one every run.
+        """
+        try:
+            async with self.client.takeout(
+                finalize=False,
+                users=True,
+                chats=True,
+                megagroups=True,
+                channels=True,
+                files=True,
+                max_file_size=TAKEOUT_MAX_FILE_SIZE,
+            ) as proxy:
+                yield MediaDownloads(self.client, proxy)
+        except TakeoutInitDelayError as error:
+            hours = max(1, int(error.seconds) // 3600)
+            raise TakeoutNotReadyError(
+                "Telegram wants to confirm this export first. Open Telegram "
+                "on the phone, look for the service message about a data "
+                "export request, tap Allow, and run this again. Without the "
+                f"confirmation it unlocks by itself in about {hours} h."
+            ) from error
+
+
+@dataclass(frozen=True)
+class MediaRecord:
+    """One downloadable photo or video, as found while scanning a chat."""
+
+    message_id: int
+    moment: datetime  # when the message was sent, UTC
+    kind: str  # PHOTO_KIND | IMAGE_DOCUMENT_KIND | VIDEO_KIND
+    extension: str
+
+
+def _document_extension(document) -> str:
+    for attribute in document.attributes:
+        if isinstance(attribute, DocumentAttributeFilename):
+            suffix = Path(attribute.file_name).suffix.lstrip(".")
+            if suffix:
+                return suffix
+    mime = (document.mime_type or "").lower()
+    if mime in KNOWN_EXTENSIONS:
+        return KNOWN_EXTENSIONS[mime]
+    return (mimetypes.guess_extension(mime) or ".bin").lstrip(".")
+
+
+def describe_media(message) -> MediaRecord | None:
+    """Classify a message's media, or None when it is not worth rescuing.
+
+    Stickers and non-image documents (PDFs, audio...) are left behind on
+    purpose: this tool rescues photos and videos, not chat attachments.
+    """
+    if message.photo is not None:
+        return MediaRecord(message.id, message.date, PHOTO_KIND, "jpg")
+
+    document = message.document
+    if document is None:
+        return None
+    attributes = document.attributes
+    if any(isinstance(a, DocumentAttributeSticker) for a in attributes):
+        return None
+
+    mime = (document.mime_type or "").lower()
+    is_video = mime.startswith("video/") or any(
+        isinstance(a, DocumentAttributeVideo) for a in attributes
+    )
+    if is_video:
+        return MediaRecord(message.id, message.date, VIDEO_KIND, _document_extension(document))
+    if mime.startswith("image/"):
+        return MediaRecord(
+            message.id, message.date, IMAGE_DOCUMENT_KIND, _document_extension(document)
+        )
+    return None
+
+
+class MediaDownloads:
+    """Downloads message media through an open takeout session."""
+
+    def __init__(self, client: TelegramClient, takeout_proxy: TelegramClient):
+        self._client = client
+        self._takeout = takeout_proxy
+
+    async def download(self, chat_id: int, message_id: int, path: Path) -> bool:
+        """Fetch one message and download its media to `path`.
+
+        Returns False when the message or its media no longer exists (it was
+        deleted between the scan and now). The message itself is fetched with
+        the regular client - only file transfers need takeout's blessing, and
+        takeout sessions do not allow every request type.
+        """
+        message = await self._client.get_messages(chat_id, ids=message_id)
+        if message is None or (message.photo is None and message.document is None):
+            return False
+        result = await self._takeout.download_media(message, file=str(path))
+        return result is not None
+
+
+class TakeoutNotReadyError(TelegramError):
+    """Telegram wants the export confirmed (or a wait) before it may start."""

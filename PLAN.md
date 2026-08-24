@@ -3,8 +3,9 @@
 **Audience:** the implementing agent (Claude Opus 5).
 **Read first:** [AGENTS.md](AGENTS.md) and [docs/DECISIONS.md](docs/DECISIONS.md).
 
-**Progress:** tasks 1–4 done; task 2 confirmed live by the owner on
-2026-08-23 (login, chat listing, and a second run that asked nothing). The
+**Progress:** tasks 1–5 implemented; task 2 confirmed live by the owner on
+2026-08-23 (login, chat listing, and a second run that asked nothing);
+task 5 awaits the owner's live verification on a small throwaway chat. The
 two video tests in task 4 skip themselves because ffmpeg is not installed on
 the owner's machine — run `pytest` again after `brew install ffmpeg` to
 close that gap. On 2026-08-24 the owner changed the destination and default

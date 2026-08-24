@@ -156,8 +156,16 @@ without the window in the way:
 
 ```bash
 .venv/bin/python -m chronogram_tg chats            # log in and list your chats
-.venv/bin/python -m chronogram_tg chats --limit 5
+.venv/bin/python -m chronogram_tg download --chat 123456 --dest ~/Downloads/rescue
+.venv/bin/python -m chronogram_tg download --chat 123456 --dest ~/Downloads/rescue \
+    --from 2023-01-01 --to 2023-12-31 --no-videos
 ```
+
+The `download` command shows a progress counter, waits politely whenever
+Telegram asks it to, and can be interrupted at any time with `Ctrl+C` —
+running it again resumes where it left off. The very first download may ask
+you to approve a *data export request* notification in the Telegram app;
+approve it and run the command again.
 
 ### Getting the photos onto the phone
 
