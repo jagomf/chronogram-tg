@@ -229,15 +229,17 @@ async def run_download(credentials: Credentials, arguments) -> None:
         counts["done"], counts["total"] = done, total
         render(format_progress(done, total, name), progress_percent(done, total))
 
-    def show_bytes(name: str, received: int, expected: int) -> None:
+    def show_bytes(name: str, received: int | None, expected: int) -> None:
         # Movement while a single large file downloads, so a long video does
-        # not look like a hang.
+        # not look like a hang. None means "not known yet" - the download is
+        # about to begin and may resume a partial file, so it renders as an
+        # ellipsis rather than as a zero.
         if not expected:
             return
+        got = "…" if received is None else human_size(received)
         current = min(counts["done"] + 1, counts["total"]) or 1
         line = (
-            format_progress(current, counts["total"], name)
-            + f" ({human_size(received)} / {human_size(expected)})"
+            format_progress(current, counts["total"], name) + f" ({got} / {human_size(expected)})"
         )
         render(line, progress_percent(current, counts["total"]))
 

@@ -54,7 +54,9 @@ FLOOD_RETRY_LIMIT = 5
 
 ProgressCallback = Callable[[int, int, str], None]  # items dealt with, total, latest name
 StatusCallback = Callable[[str], None]
-BytesCallback = Callable[[str, int, int], None]  # filename, bytes received, bytes expected
+# filename, bytes received (None while still unknown, e.g. before a resume
+# point is established), bytes expected
+BytesCallback = Callable[[str, int | None, int], None]
 
 
 @dataclass(frozen=True)
@@ -260,8 +262,10 @@ async def download_chat(
             if on_bytes is not None and item.record.size:
                 # Announce the file as soon as it starts, so the line does
                 # not keep showing the previous item while the connection
-                # and the first bytes are still on their way.
-                on_bytes(item.filename, 0, item.record.size)
+                # and the first bytes are still on their way. Received is
+                # None, not 0: a partial from an earlier run may be about to
+                # resume, so "starting from zero" would be a lie.
+                on_bytes(item.filename, None, item.record.size)
             try:
                 if not await _download_patiently(
                     downloads, chat_id, item, temporary, say, on_bytes

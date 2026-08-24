@@ -300,4 +300,7 @@ def test_a_starting_download_is_announced_before_its_first_byte(tmp_path):
         on_bytes=lambda name, received, expected: seen.append((received, expected)),
     )
 
-    assert seen[0] == (0, 5000)
+    # None, not 0: the announcement must not claim "starting from zero"
+    # when a partial file may be about to resume.
+    assert seen[0] == (None, 5000)
+    assert all(isinstance(received, int) for received, _ in seen[1:])
