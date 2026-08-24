@@ -88,6 +88,14 @@ expected. On relaunch, files already present in the destination (matched by
 their deterministic names) are skipped and the download continues where it
 left off.
 
+*Extended 2026-08-24, after the owner lost a 1.2 GB video to a cancel:
+resume now also works within a file. Partial `.part` downloads of documents
+(videos, images sent as files) survive interruptions and continue from
+their last 4 KiB-aligned byte instead of starting over. A partial that is
+not strictly smaller than the expected size is not trusted and restarts;
+one that ends at the wrong size is deleted and retried fresh on the next
+run.*
+
 ## D12 — Name: "Chronogram TG"
 
 "Chronogram" evokes dates — the essence of the project. The "TG" suffix

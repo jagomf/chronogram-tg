@@ -8,7 +8,9 @@ resume an interrupted run.
 
 Each item is downloaded to a temporary name, stamped, and only then renamed
 to its final name: a file that carries its final name is always complete
-and dated. The temporary name keeps the real extension at the end
+and dated. Temporary files survive interruptions on purpose - large
+documents continue downloading from their last aligned byte instead of
+starting over. The temporary name keeps the real extension at the end
 (IMG_x.part.jpg) because ffmpeg picks the output container by extension.
 
 This module never touches Telethon types: it talks to Telegram through the
@@ -268,11 +270,10 @@ async def download_chat(
             except TelegramError:
                 # Session-level trouble (expired export, lost login) affects
                 # every remaining item: stop the run instead of logging it
-                # once per file.
-                temporary.unlink(missing_ok=True)
+                # once per file. The partial file stays for the next run.
                 raise
             except Exception as error:  # one broken item must not sink the rescue
-                temporary.unlink(missing_ok=True)
+                # The partial file stays too: the retry resumes it.
                 summary.errors.append(f"{item.filename}: {error}")
 
             tick(dealt_with, summary.total, item.filename)

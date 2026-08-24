@@ -52,6 +52,7 @@ class FakeSource:
         if message_id in self.missing:
             return False
         if message_id in self.broken:
+            path.write_bytes(b"half of a download")
             raise OSError("connection reset")
         if on_bytes is not None:
             on_bytes(len(MINIMAL_JPEG) // 2, len(MINIMAL_JPEG))
@@ -118,7 +119,8 @@ def test_one_broken_item_does_not_sink_the_rest(tmp_path):
 
     assert summary.downloaded == 2
     assert len(summary.errors) == 1 and "connection reset" in summary.errors[0]
-    assert not list(tmp_path.glob("*.part*"))
+    # The half-downloaded temporary survives so the next run can resume it.
+    assert (tmp_path / "IMG_20240815_143023_000.part.jpg").read_bytes() == b"half of a download"
 
 
 def test_a_message_deleted_after_the_scan_is_only_counted(tmp_path):

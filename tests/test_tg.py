@@ -155,3 +155,62 @@ def test_a_video_document_takes_its_extension_from_its_filename():
     record = describe_media(media_message(document=clip, size=5_000_000))
 
     assert (record.kind, record.extension, record.size) == (VIDEO_KIND, "MOV", 5_000_000)
+
+
+def stream_of(data, chunk_size=1000):
+    def open_stream(offset):
+        async def chunks():
+            for start in range(offset, len(data), chunk_size):
+                yield data[start : start + chunk_size]
+
+        return chunks()
+
+    return open_stream
+
+
+def append_download(path, expected, open_stream, on_bytes=None):
+    from chronogram_tg.tg import _append_download
+
+    return asyncio.run(_append_download(path, expected, open_stream, on_bytes))
+
+
+def test_a_fresh_download_writes_the_whole_file(tmp_path):
+    data = bytes(range(256)) * 40  # 10240 bytes
+    path = tmp_path / "clip.part.mp4"
+
+    append_download(path, len(data), stream_of(data))
+
+    assert path.read_bytes() == data
+
+
+def test_a_partial_download_continues_instead_of_starting_over(tmp_path):
+    data = bytes(range(256)) * 40
+    path = tmp_path / "clip.part.mp4"
+    path.write_bytes(data[:6000])  # interrupted mid-file
+    resumed_from = []
+
+    append_download(path, len(data), stream_of(data), lambda got, _: resumed_from.append(got))
+
+    assert path.read_bytes() == data
+    # 6000 truncates down to the 4096 alignment; nothing before that is refetched.
+    assert resumed_from[0] > 4096
+
+
+def test_an_oversized_partial_is_not_trusted_and_restarts(tmp_path):
+    data = bytes(range(256)) * 40
+    path = tmp_path / "clip.part.mp4"
+    path.write_bytes(b"x" * len(data))  # same size but unknown provenance
+
+    append_download(path, len(data), stream_of(data))
+
+    assert path.read_bytes() == data
+
+
+def test_a_download_that_falls_short_is_deleted_and_reported(tmp_path):
+    data = bytes(range(256)) * 40
+    path = tmp_path / "clip.part.mp4"
+
+    with pytest.raises(OSError, match="instead of"):
+        append_download(path, len(data) + 5000, stream_of(data))
+
+    assert not path.exists()

@@ -48,6 +48,10 @@ VIDEO_KIND = "video"
 # Generous cap so no family video is left out of the takeout scope.
 TAKEOUT_MAX_FILE_SIZE = 4 * 1024**3
 
+# Telegram requires download offsets to be multiples of 4 KiB. A partial
+# file is truncated down to this boundary and continued from there.
+DOWNLOAD_OFFSET_ALIGN = 4096
+
 # Preferred over mimetypes for the formats Telegram actually sends, so the
 # extension does not depend on the operating system's mime registry.
 KNOWN_EXTENSIONS = {
@@ -379,6 +383,39 @@ def describe_media(message) -> MediaRecord | None:
     return None
 
 
+async def _append_download(path: Path, expected_size: int, open_stream, on_bytes=None) -> None:
+    """Download to `path`, continuing a previous partial file if one exists.
+
+    `open_stream(offset)` must return an async iterator of chunks starting at
+    that byte. A partial file is truncated down to Telegram's offset
+    alignment and continued, so a cancelled 1 GB video does not start over.
+    Raises OSError when the result does not reach the expected size; the
+    partial is deleted then, so the next run restarts that file cleanly.
+    """
+    start = 0
+    if path.exists():
+        # A genuine in-progress partial is strictly smaller than the full
+        # file; anything else is stale or foreign and gets restarted.
+        if path.stat().st_size < expected_size:
+            start = (path.stat().st_size // DOWNLOAD_OFFSET_ALIGN) * DOWNLOAD_OFFSET_ALIGN
+
+    received = start
+    with path.open("r+b" if path.exists() else "wb") as handle:
+        handle.truncate(start)
+        handle.seek(start)
+        async for chunk in open_stream(start):
+            handle.write(chunk)
+            received += len(chunk)
+            if on_bytes is not None:
+                on_bytes(received, expected_size)
+
+    if received != expected_size:
+        path.unlink(missing_ok=True)
+        raise OSError(
+            f"download of {path.name} ended at {received} bytes instead of {expected_size}"
+        )
+
+
 class MediaDownloads:
     """Downloads message media through an open takeout session."""
 
@@ -402,6 +439,16 @@ class MediaDownloads:
         if message is None or (message.photo is None and message.document is None):
             return False
         try:
+            document = message.document
+            expected = getattr(message.file, "size", None) or 0
+            if document is not None and expected:
+                # Documents (videos, images sent as files) resume from a
+                # partial download; photos are small and use the plain path.
+                def open_stream(offset):
+                    return self._takeout.iter_download(document, offset=offset)
+
+                await _append_download(path, expected, open_stream, on_bytes)
+                return True
             result = await self._takeout.download_media(
                 message, file=str(path), progress_callback=on_bytes
             )

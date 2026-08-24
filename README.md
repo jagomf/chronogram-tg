@@ -163,8 +163,9 @@ without the window in the way:
 
 The `download` command shows a progress counter, waits politely whenever
 Telegram asks it to, and can be interrupted at any time with `Ctrl+C` —
-running it again resumes where it left off, because files already in the
-destination folder are recognised by name and skipped. To *start over*
+running it again resumes where it left off: files already in the
+destination folder are recognised by name and skipped, and a half-finished
+video continues downloading from where it stopped instead of starting over. To *start over*
 instead, add `--clean`: it first deletes this download's own files from the
 destination (other files in the folder are left alone) and then downloads
 everything again. The very first download may ask you to
