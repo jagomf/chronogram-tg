@@ -30,6 +30,7 @@ from telethon.errors import (
     TakeoutInitDelayError,
     TakeoutInvalidError,
 )
+from telethon.sessions import SQLiteSession
 from telethon.tl.types import (
     DocumentAttributeFilename,
     DocumentAttributeSticker,
@@ -59,6 +60,52 @@ KNOWN_EXTENSIONS = {
     "video/quicktime": "mov",
     "video/webm": "webm",
 }
+
+
+class RepairedSQLiteSession(SQLiteSession):
+    """Works around a takeout_id/tmp_auth_key column swap in Telethon 1.44.0.
+
+    Telethon's session writer puts `takeout_id` in one column and its loader
+    reads it from another. The consequences escalate: a session that never
+    had a takeout loads a phantom empty blob as its takeout id (which then
+    breaks every takeout request), and if a real id ever reaches the row,
+    the next load crashes trying to build an AuthKey out of an integer. So
+    the sqlite row cannot be trusted with the takeout id at all: this class
+    keeps it in a sidecar file next to the session and always writes None
+    into the row. Remove once Telethon fixes the swap.
+    """
+
+    def __init__(self, session_id=None):
+        super().__init__(session_id)
+        self._sidecar = Path(self.filename + ".takeout")
+        self._takeout_id = None  # ignore the row's phantom value
+        if self._sidecar.exists():
+            try:
+                self._takeout_id = int(self._sidecar.read_text().strip())
+            except ValueError:
+                self._takeout_id = None
+
+    @property
+    def takeout_id(self):
+        return self._takeout_id
+
+    @takeout_id.setter
+    def takeout_id(self, value):
+        self._takeout_id = value
+        if value is None:
+            self._sidecar.unlink(missing_ok=True)
+        else:
+            self._sidecar.write_text(str(value))
+
+    def _update_session_table(self):
+        # Never let the id touch the row - Telethon would store it in the
+        # tmp-key column and crash the next load.
+        remembered = self._takeout_id
+        self._takeout_id = None
+        try:
+            super()._update_session_table()
+        finally:
+            self._takeout_id = remembered
 
 
 class TelegramError(Exception):
@@ -119,7 +166,7 @@ class TelegramSession:
 
     async def connect(self) -> None:
         self._client = TelegramClient(
-            self._session_file,
+            RepairedSQLiteSession(self._session_file),
             self._credentials.api_id,
             self._credentials.api_hash,
         )
@@ -283,6 +330,7 @@ class MediaRecord:
     moment: datetime  # when the message was sent, UTC
     kind: str  # PHOTO_KIND | IMAGE_DOCUMENT_KIND | VIDEO_KIND
     extension: str
+    size: int = 0  # bytes, as reported by Telegram; 0 when unknown
 
 
 def _document_extension(document) -> str:
@@ -303,8 +351,9 @@ def describe_media(message) -> MediaRecord | None:
     Stickers and non-image documents (PDFs, audio...) are left behind on
     purpose: this tool rescues photos and videos, not chat attachments.
     """
+    size = getattr(getattr(message, "file", None), "size", 0) or 0
     if message.photo is not None:
-        return MediaRecord(message.id, message.date, PHOTO_KIND, "jpg")
+        return MediaRecord(message.id, message.date, PHOTO_KIND, "jpg", size)
 
     document = message.document
     if document is None:
@@ -318,10 +367,12 @@ def describe_media(message) -> MediaRecord | None:
         isinstance(a, DocumentAttributeVideo) for a in attributes
     )
     if is_video:
-        return MediaRecord(message.id, message.date, VIDEO_KIND, _document_extension(document))
+        return MediaRecord(
+            message.id, message.date, VIDEO_KIND, _document_extension(document), size
+        )
     if mime.startswith("image/"):
         return MediaRecord(
-            message.id, message.date, IMAGE_DOCUMENT_KIND, _document_extension(document)
+            message.id, message.date, IMAGE_DOCUMENT_KIND, _document_extension(document), size
         )
     return None
 

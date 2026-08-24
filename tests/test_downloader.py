@@ -203,3 +203,33 @@ def test_session_level_trouble_stops_the_run_instead_of_repeating_per_file(tmp_p
         run(source, tmp_path)
 
     assert not list(tmp_path.glob("*.part*"))
+
+
+@pytest.mark.parametrize(
+    ("count", "expected"),
+    [
+        (0, "0 B"),
+        (999, "999 B"),
+        (1_500, "1.5 KB"),
+        (2_340_000, "2.3 MB"),
+        (1_200_000_000, "1.2 GB"),
+    ],
+)
+def test_sizes_are_reported_in_human_units(count, expected):
+    from chronogram_tg.downloader import human_size
+
+    assert human_size(count) == expected
+
+
+def test_the_scan_status_includes_the_total_size_when_known(tmp_path):
+    source = FakeSource(
+        [
+            MediaRecord(1, MOMENT, PHOTO_KIND, "jpg", 1_500_000),
+            MediaRecord(2, MOMENT + timedelta(seconds=1), PHOTO_KIND, "jpg", 500_000),
+        ]
+    )
+    heard = []
+
+    run(source, tmp_path, on_status=heard.append)
+
+    assert any("2 items to consider, 2.0 MB in total." == message for message in heard)

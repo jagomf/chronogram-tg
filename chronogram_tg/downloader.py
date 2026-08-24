@@ -111,6 +111,16 @@ class DownloadControl:
         return not self.cancelled
 
 
+def human_size(count: int) -> str:
+    """1234567 -> '1.2 MB', for people rather than programs."""
+    value = float(count)
+    for unit in ("B", "KB", "MB", "GB", "TB"):
+        if value < 1000 or unit == "TB":
+            break
+        value /= 1000
+    return f"{count} B" if unit == "B" else f"{value:.1f} {unit}"
+
+
 def plan_names(records: list[MediaRecord], template: str) -> list[PlannedItem]:
     """Give every record its final filename, in message order.
 
@@ -190,7 +200,11 @@ async def download_chat(
     records = await source.scan_media(chat_id, since, until_exclusive)
     plan = plan_names(records, template)
     summary = Summary(total=len(plan))
-    say(f"{summary.total} items to consider.")
+    total_bytes = sum(item.record.size for item in plan)
+    if total_bytes:
+        say(f"{summary.total} items to consider, {human_size(total_bytes)} in total.")
+    else:
+        say(f"{summary.total} items to consider.")
     if not plan:
         return summary
 

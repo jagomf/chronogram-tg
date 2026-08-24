@@ -3,6 +3,7 @@
 # Treat it like a password.
 *.session
 *.session-journal
+*.session.takeout
 .env
 
 # ── Downloaded media (user data, never belongs in the repo) ──────────
