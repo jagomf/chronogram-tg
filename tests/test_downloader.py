@@ -288,3 +288,16 @@ def test_byte_progress_is_not_reported_for_skipped_files(tmp_path):
     run(source, tmp_path, on_bytes=lambda *call: seen.append(call))
 
     assert seen == []
+
+
+def test_a_starting_download_is_announced_before_its_first_byte(tmp_path):
+    source = FakeSource([MediaRecord(1, MOMENT, PHOTO_KIND, "jpg", 5000)])
+    seen = []
+
+    run(
+        source,
+        tmp_path,
+        on_bytes=lambda name, received, expected: seen.append((received, expected)),
+    )
+
+    assert seen[0] == (0, 5000)

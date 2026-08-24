@@ -257,6 +257,11 @@ async def download_chat(
                 continue
 
             temporary = _temporary_path(destination, item.filename)
+            if on_bytes is not None and item.record.size:
+                # Announce the file as soon as it starts, so the line does
+                # not keep showing the previous item while the connection
+                # and the first bytes are still on their way.
+                on_bytes(item.filename, 0, item.record.size)
             try:
                 if not await _download_patiently(
                     downloads, chat_id, item, temporary, say, on_bytes
