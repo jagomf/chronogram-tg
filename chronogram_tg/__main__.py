@@ -139,6 +139,7 @@ def print_summary(summary: Summary) -> None:
     print()
     if summary.cancelled:
         print("Cancelled. Run the same command again to resume where it left off.")
+        print("(To start over from scratch instead, empty the destination folder first.)")
     lines = [
         ("downloaded", summary.downloaded),
         ("already there from a previous run", summary.already_there),
@@ -231,7 +232,11 @@ def main(argv: list[str] | None = None) -> int:
         print(f"\n{error}", file=sys.stderr)
         return 1
     except (KeyboardInterrupt, EOFError):
-        print("\nCancelled. Run the same command again to resume.", file=sys.stderr)
+        print(
+            "\nCancelled. Run the same command again to resume, or empty the "
+            "destination folder first to start over from scratch.",
+            file=sys.stderr,
+        )
         return 1
     return 0
 
