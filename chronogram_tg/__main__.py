@@ -146,7 +146,8 @@ def progress_percent(done: int, total: int) -> int:
 
 
 def format_progress(done: int, total: int, name: str) -> str:
-    return f"{progress_percent(done, total):3d}%  {done} / {total}  {name:<40.40}"
+    line = f"{progress_percent(done, total):3d}%: {done} / {total}"
+    return f"{line} - {name:.60}" if name else line
 
 
 def taskbar_progress(percent: int | None) -> str:
@@ -214,12 +215,18 @@ async def run_download(credentials: Credentials, arguments) -> None:
         include_videos = False
         print("ffmpeg was not found, so videos will be skipped. See the README to add it.\n")
 
-    counts = {"done": 0, "total": 0}
+    counts = {"done": 0, "total": 0, "width": 0}
+
+    def render(line: str, percent: int) -> None:
+        # Pad to the widest line printed so far, so a shorter update fully
+        # covers the remains of a longer one on the same terminal row.
+        counts["width"] = max(counts["width"], len(line))
+        padded = line.ljust(counts["width"])
+        print(f"\r{padded}{taskbar_progress(percent)}", end="", flush=True)
 
     def show_progress(done: int, total: int, name: str) -> None:
         counts["done"], counts["total"] = done, total
-        line = format_progress(done, total, name) + " " * 26
-        print(f"\r{line}{taskbar_progress(progress_percent(done, total))}", end="", flush=True)
+        render(format_progress(done, total, name), progress_percent(done, total))
 
     def show_bytes(name: str, received: int, expected: int) -> None:
         # Movement while a single large file downloads, so a long video does
@@ -229,9 +236,9 @@ async def run_download(credentials: Credentials, arguments) -> None:
         current = min(counts["done"] + 1, counts["total"]) or 1
         line = (
             format_progress(current, counts["total"], name)
-            + f"  {human_size(received)} / {human_size(expected)}"
+            + f" ({human_size(received)} / {human_size(expected)})"
         )
-        print(f"\r{line:<110.110}", end="", flush=True)
+        render(line, progress_percent(current, counts["total"]))
 
     def show_status(message: str) -> None:
         print(f"\n{message}")
