@@ -8,10 +8,10 @@ Telegram doesn't save chat photos to your phone's gallery, and if you save
 them manually today they show up in Google Photos dated *today* — not when
 they were actually sent. Chronogram TG is a small desktop app that downloads
 the photos (and optionally videos) of a Telegram chat and stamps each file
-with the **original message date**, using camera-style filenames
-(`PXL_20240815_143022123.jpg`). Copy the resulting files to your phone's
-`/DCIM/Camera` folder and Google Photos will back them up and sort them in
-their true chronological place.
+with the **original message date**, named exactly like the files Telegram
+itself saves to the gallery (`IMG_20240815_143022_123.jpg`). Copy them to
+the phone's Telegram gallery folders and Google Photos will back them up
+and sort them in their true chronological place.
 
 > **Project status:** the repository scaffolding and implementation plan are
 > ready; the application itself is being built following [PLAN.md](PLAN.md).
@@ -161,17 +161,27 @@ without the window in the way:
 
 ### Getting the photos onto the phone
 
-Connect the phone via USB (or use any file-transfer method) and copy **all**
-downloaded files into `/DCIM/Camera` on the phone. Google Photos will back
-them up and order them by their embedded dates. Alternatively, upload the
-folder at [photos.google.com](https://photos.google.com).
+Connect the phone via USB (or use any file-transfer method) and copy the
+downloaded **photos** into `Pictures/Telegram` and the **videos** into
+`Movies/Telegram` on the phone. Those are the folders where Telegram itself
+saves media when "Save to Gallery" is enabled, so the rescued history and
+any newly arriving photos end up living together. Then make sure Google
+Photos backs those folders up: **Google Photos → your profile picture →
+Photos settings → Backup → Back up device folders → enable "Telegram"**.
+Google Photos orders everything by the dates embedded in the files, so the
+history lands in its true chronological place. (Any other backed-up folder,
+`DCIM/Camera` included, works just as well — the dates travel inside the
+files.) Alternatively, upload the folder at
+[photos.google.com](https://photos.google.com).
 
 ### Filename patterns
 
-By default files are named like a Google Pixel camera:
-`PXL_20240815_143022123.jpg` (date and time in UTC, milliseconds used to
-avoid collisions). The settings dialog offers other presets (`IMG_...`,
-plain date) and a free template with live preview.
+By default files are named the way Telegram for Android names them when
+saving to the gallery: `IMG_20240815_143022_123.jpg` for photos and
+`VID_20240815_143022_123.mp4` for videos — except the date and time are the
+message's, in UTC, with milliseconds used to avoid collisions. The settings
+dialog offers other presets (Google Pixel camera style `PXL_...`, plain
+date) and a free template with live preview.
 
 ## ⚠️ Security
 

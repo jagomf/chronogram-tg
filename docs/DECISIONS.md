@@ -40,6 +40,11 @@ chronological result. API upload remains a possible future evolution.
 
 ## D5 — Native-camera-style filenames, Pixel preset by default
 
+*Amended 2026-08-24 by D18: the default preset is now the Telegram style
+and the destination is the phone's Telegram gallery folders. The Pixel
+preset remains selectable; the rest of this decision (configurable
+template, cosmetic purpose) stands.*
+
 Google Photos ignores filenames, so this is purely cosmetic — but coherent
 naming inside `DCIM/Camera` is an explicit wish of the user (whose target
 device is a Pixel 6a). The pattern is configurable (template with tokens,
@@ -130,3 +135,32 @@ what the README promises a non-Python user. The PyPA-recommended `src`
 layout protects against importing the source tree instead of the installed
 distribution, a problem that only arises when publishing to PyPI; we do not
 (D16).
+
+## D18 — Rescued files join the phone's Telegram gallery folders
+
+Decided by the user on 2026-08-24, amending D5's default. While setting up
+the rescue he also enabled Telegram's "Save to Gallery" on his mother's
+phone, so *new* photos now land in the phone's Telegram gallery folders —
+`Pictures/Telegram` for images, `Movies/Telegram` for videos — and Google
+Photos will back those device folders up. The rescued history should live
+where the new photos live, looking like them, rather than posing as camera
+shots in `/DCIM/Camera`.
+
+Consequences:
+
+* The README's transfer instructions point at `Pictures/Telegram` and
+  `Movies/Telegram`, plus enabling Google Photos backup for those device
+  folders. (`DCIM/Camera` still works — Google Photos sorts by embedded
+  dates — so it is mentioned as an alternative, not removed.)
+* The default filename preset is now **Telegram**:
+  `{kind}_{date}_{time}_{ms}`, where `{kind}` is `IMG` or `VID`. This is
+  the exact format Telegram for Android writes when saving to the gallery
+  (`IMG_yyyyMMdd_HHmmss_SSS.jpg` / `VID_…mp4`), verified in the app's
+  source: `AndroidUtilities.generateFileName` and `MediaController.saveFile`
+  in the DrKLO/Telegram repository. The Pixel preset remains selectable.
+* Two deliberate differences from Telegram's own names, both invisible in
+  practice: Telegram stamps the *save* moment in *local* time with random
+  milliseconds, while Chronogram TG stamps the *message* date in *UTC*
+  (D15) with a deterministic millisecond counter (D11 requires
+  determinism). Collisions with files Telegram itself saves later are no
+  concern: those carry arrival timestamps, not historical ones.

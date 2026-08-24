@@ -3,12 +3,13 @@ from datetime import UTC, datetime, timedelta, timezone
 import pytest
 
 from chronogram_tg.naming import (
-    GENERIC_TEMPLATE,
     PIXEL_TEMPLATE,
     PLAIN_TEMPLATE,
     PRESETS,
+    TELEGRAM_TEMPLATE,
     NameAllocator,
     TemplateError,
+    kind_for_extension,
     normalise_extension,
     preview,
     validate_template,
@@ -20,8 +21,8 @@ MOMENT = datetime(2024, 8, 15, 14, 30, 22, tzinfo=UTC)
 @pytest.mark.parametrize(
     ("template", "expected"),
     [
+        (TELEGRAM_TEMPLATE, "IMG_20240815_143022_000.jpg"),
         (PIXEL_TEMPLATE, "PXL_20240815_143022000.jpg"),
-        (GENERIC_TEMPLATE, "IMG_20240815_143022000.jpg"),
         (PLAIN_TEMPLATE, "20240815_143022000.jpg"),
     ],
 )
@@ -29,9 +30,12 @@ def test_each_preset_produces_its_documented_name(template, expected):
     assert NameAllocator(template).allocate(MOMENT, "jpg") == expected
 
 
-def test_the_pixel_preset_is_the_first_offered():
-    assert next(iter(PRESETS)) == "Pixel"
-    assert PRESETS["Pixel"] == PIXEL_TEMPLATE
+def test_the_telegram_preset_is_the_first_offered():
+    # Decision D18: the rescued files join the phone's Telegram gallery
+    # folders, so they are named the way Telegram itself names files there.
+    assert next(iter(PRESETS)) == "Telegram"
+    assert PRESETS["Telegram"] == TELEGRAM_TEMPLATE
+    assert "Pixel" in PRESETS
 
 
 def test_items_sharing_a_second_are_numbered_in_message_order():
@@ -147,3 +151,32 @@ def test_the_preview_shows_the_documented_pixel_example():
 def test_the_preview_reports_the_problem_instead_of_a_name():
     with pytest.raises(TemplateError):
         preview("{nope}")
+
+
+@pytest.mark.parametrize(
+    ("extension", "kind"),
+    [("jpg", "IMG"), ("png", "IMG"), (".JPG", "IMG"), ("mp4", "VID"), (".MOV", "VID"), ("", "IMG")],
+)
+def test_the_kind_token_matches_telegrams_own_prefixes(extension, kind):
+    assert kind_for_extension(extension) == kind
+
+
+def test_a_video_gets_the_vid_prefix_in_the_telegram_preset():
+    assert NameAllocator(TELEGRAM_TEMPLATE).allocate(MOMENT, "mp4") == (
+        "VID_20240815_143022_000.mp4"
+    )
+
+
+def test_a_photo_and_a_video_in_the_same_second_share_the_counter():
+    # Determinism across kinds: the counter follows message order, so a
+    # rerun rebuilds the same names even when kinds interleave.
+    allocator = NameAllocator(TELEGRAM_TEMPLATE)
+
+    names = [allocator.allocate(MOMENT, "jpg"), allocator.allocate(MOMENT, "mp4")]
+
+    assert names == ["IMG_20240815_143022_000.jpg", "VID_20240815_143022_001.mp4"]
+
+
+def test_the_preview_of_the_telegram_preset_follows_the_extension():
+    assert preview(TELEGRAM_TEMPLATE) == "IMG_20240815_143022_000.jpg"
+    assert preview(TELEGRAM_TEMPLATE, "mp4") == "VID_20240815_143022_000.mp4"

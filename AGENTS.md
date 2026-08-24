@@ -4,10 +4,11 @@
 
 Chronogram TG is a small cross-platform (macOS + Windows) desktop app that
 downloads the photos/videos of a Telegram chat and stamps each file with the
-**original message date** (EXIF / MP4 `creation_time`, in UTC), using
-camera-style filenames, so the files sort chronologically once moved to a
-phone's `/DCIM/Camera` and backed up by Google Photos. Primary use is a
-one-off rescue of a family photo history, operated by a non-Python user.
+**original message date** (EXIF / MP4 `creation_time`, in UTC), named the
+way Telegram itself names gallery files, so they sort chronologically once
+moved to the phone's Telegram gallery folders (`Pictures/Telegram`,
+`Movies/Telegram`) and backed up by Google Photos. Primary use is a one-off
+rescue of a family photo history, operated by a non-Python user.
 
 Read these before writing any code:
 
@@ -82,7 +83,9 @@ test against a **small throwaway chat** first, never the real family chat.
 - **Dates:** all timestamps (filenames, EXIF, `creation_time`, mtime) in
   **UTC**, no timezone conversion (D15). Telegram already provides UTC.
 - **Filenames:** deterministic, derived from the message date via the
-  pattern engine; Pixel preset (`PXL_YYYYMMDD_HHMMSSmmm.ext`) by default.
+  pattern engine; Telegram preset (`IMG_`/`VID_YYYYMMDD_HHMMSS_mmm.ext`,
+  matching what Telegram for Android writes - decision D18) by default; the
+  Pixel preset (`PXL_...`) remains selectable.
   Determinism is what makes resume-by-filename work — never add random
   components.
 - **EXIF:** write `DateTimeOriginal` with piexif on compressed photos; on

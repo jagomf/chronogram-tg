@@ -6,7 +6,11 @@ lets an interrupted download resume by simply skipping the files it finds
 (decision D11). Nothing here may depend on the clock, on randomness or on
 the destination folder's contents.
 
-All times are UTC (decision D15); Telegram already reports them that way.
+The default preset mimics what Telegram for Android itself writes when
+"Save to Gallery" is on - IMG_20240815_143022_123.jpg, VID_..._123.mp4 -
+so the rescued history looks at home next to newly saved photos in the
+phone's Telegram gallery folders (decision D18). All times are UTC
+(decision D15); Telegram already reports them that way.
 """
 
 from __future__ import annotations
@@ -17,18 +21,26 @@ from datetime import UTC, datetime
 DATE_TOKEN = "date"
 TIME_TOKEN = "time"
 MS_TOKEN = "ms"
-TOKENS = (DATE_TOKEN, TIME_TOKEN, MS_TOKEN)
+KIND_TOKEN = "kind"
+TOKENS = (DATE_TOKEN, TIME_TOKEN, MS_TOKEN, KIND_TOKEN)
 
+TELEGRAM_TEMPLATE = "{kind}_{date}_{time}_{ms}"
 PIXEL_TEMPLATE = "PXL_{date}_{time}{ms}"
-GENERIC_TEMPLATE = "IMG_{date}_{time}{ms}"
 PLAIN_TEMPLATE = "{date}_{time}{ms}"
 
 # Shown in the settings dropdown, in this order. The first one is the default.
 PRESETS: dict[str, str] = {
+    "Telegram": TELEGRAM_TEMPLATE,
     "Pixel": PIXEL_TEMPLATE,
-    "Generic IMG": GENERIC_TEMPLATE,
     "Plain date": PLAIN_TEMPLATE,
 }
+
+# {kind} renders as VID for these extensions and IMG for everything else,
+# matching Telegram for Android's own prefixes. Extension-based on purpose:
+# it keeps the engine pure, and Telegram delivers videos as mp4 anyway.
+VIDEO_EXTENSIONS = frozenset({"mp4", "mov", "m4v", "avi", "mkv", "webm", "3gp", "mpg", "mpeg"})
+IMAGE_KIND = "IMG"
+VIDEO_KIND = "VID"
 
 # Fixed sample for the live preview, so the preview never moves on its own.
 SAMPLE_MOMENT = datetime(2024, 8, 15, 14, 30, 22, tzinfo=UTC)
@@ -47,7 +59,7 @@ RESERVED_NAMES = frozenset(
     | {f"LPT{digit}" for digit in range(1, 10)}
 )
 
-TOKEN_HELP = "Available tokens: {date}, {time}, {ms}."
+TOKEN_HELP = "Available tokens: {date}, {time}, {ms}, {kind}."
 
 
 class TemplateError(ValueError):
@@ -90,12 +102,12 @@ def validate_template(template: str) -> None:
     if template.endswith("."):
         raise TemplateError("The pattern cannot end with a dot.")
 
-    stem = _render(template, SAMPLE_MOMENT, 0)
+    stem = _render(template, SAMPLE_MOMENT, 0, IMAGE_KIND)
     if stem.upper() in RESERVED_NAMES:
         raise TemplateError(f'"{stem}" is a name Windows reserves. Add something to it.')
 
 
-def _render(template: str, moment: datetime, milliseconds: int) -> str:
+def _render(template: str, moment: datetime, milliseconds: int, kind: str) -> str:
     moment = moment.astimezone(UTC) if moment.tzinfo else moment
     try:
         return template.format(
@@ -103,6 +115,7 @@ def _render(template: str, moment: datetime, milliseconds: int) -> str:
                 DATE_TOKEN: moment.strftime("%Y%m%d"),
                 TIME_TOKEN: moment.strftime("%H%M%S"),
                 MS_TOKEN: f"{milliseconds:03d}",
+                KIND_TOKEN: kind,
             }
         )
     except (KeyError, IndexError, ValueError) as error:
@@ -116,10 +129,16 @@ def normalise_extension(extension: str) -> str:
     return cleaned or FALLBACK_EXTENSION
 
 
+def kind_for_extension(extension: str) -> str:
+    """IMG or VID, the way Telegram for Android prefixes its gallery files."""
+    return VIDEO_KIND if normalise_extension(extension) in VIDEO_EXTENSIONS else IMAGE_KIND
+
+
 def preview(template: str, extension: str = SAMPLE_EXTENSION) -> str:
     """Render the settings dialog's live example. Raises TemplateError."""
     validate_template(template)
-    return f"{_render(template, SAMPLE_MOMENT, 0)}.{normalise_extension(extension)}"
+    stem = _render(template, SAMPLE_MOMENT, 0, kind_for_extension(extension))
+    return f"{stem}.{normalise_extension(extension)}"
 
 
 class NameAllocator:
@@ -143,12 +162,13 @@ class NameAllocator:
         index = self._counter_by_second.get(key, 0)
         self._counter_by_second[key] = index + 1
 
-        stem = _render(self._template, moment, min(index, 999))
-        name = f"{stem}.{normalise_extension(extension)}"
+        cleaned = normalise_extension(extension)
+        stem = _render(self._template, moment, min(index, 999), kind_for_extension(extension))
+        name = f"{stem}.{cleaned}"
         # Case-insensitive: macOS and Windows would treat A.JPG and a.jpg as
         # the same file, and the destination is usually one of the two.
         if name.lower() in self._used:
-            name = self._disambiguate(stem, normalise_extension(extension))
+            name = self._disambiguate(stem, cleaned)
         self._used.add(name.lower())
         return name
 

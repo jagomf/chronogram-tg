@@ -14,7 +14,7 @@ from pathlib import Path
 
 from dotenv import dotenv_values
 
-from .naming import PIXEL_TEMPLATE, TemplateError, validate_template
+from .naming import TELEGRAM_TEMPLATE, TemplateError, validate_template
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 ENV_FILE = PROJECT_ROOT / ".env"
@@ -26,7 +26,7 @@ API_HASH_KEY = "TELEGRAM_API_HASH"
 
 # naming.py owns the token vocabulary and the preset list; this is only the
 # fallback used when no settings file exists yet.
-DEFAULT_FILENAME_TEMPLATE = PIXEL_TEMPLATE
+DEFAULT_FILENAME_TEMPLATE = TELEGRAM_TEMPLATE
 
 MISSING_CREDENTIALS_MESSAGE = """\
 Telegram credentials not found.

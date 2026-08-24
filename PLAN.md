@@ -7,7 +7,10 @@
 2026-08-23 (login, chat listing, and a second run that asked nothing). The
 two video tests in task 4 skip themselves because ffmpeg is not installed on
 the owner's machine — run `pytest` again after `brew install ffmpeg` to
-close that gap. Update this line as part of each task's commit.
+close that gap. On 2026-08-24 the owner changed the destination and default
+naming (decision D18: Telegram gallery folders and Telegram-style names
+instead of `/DCIM/Camera` and Pixel names); tasks 1–4 were updated
+accordingly. Update this line as part of each task's commit.
 
 ## Ground rules (apply to every task)
 
@@ -50,9 +53,12 @@ close that gap. Update this line as part of each task's commit.
 - Videos: optional, require ffmpeg on PATH, write `creation_time` with
   `-c copy` (no re-encode).
 - Output: **flat folder**, no subfolders.
-- Filenames: template engine with tokens; default preset Pixel
-  (`PXL_{date}_{time}{ms}` → `PXL_20240815_143022123.jpg`); millisecond
-  counter resolves same-second collisions deterministically.
+- Filenames: template engine with tokens; default preset Telegram
+  (`{kind}_{date}_{time}_{ms}` → `IMG_20240815_143022_123.jpg`, `VID_…` for
+  videos — the exact format Telegram for Android writes when saving to the
+  gallery; decision D18, changed 2026-08-24). Pixel (`PXL_…`) and plain-date
+  presets remain selectable; millisecond counter resolves same-second
+  collisions deterministically.
 - Resume: skip files that already exist in the destination by name.
 - UI: CustomTkinter, English strings, download in a worker thread,
   pause/resume/cancel, progress `n / total`, ffmpeg banner, chat-picker
@@ -135,9 +141,11 @@ mechanics with the user **before** any GUI exists.
 - **Files:** `chronogram_tg/naming.py`, `tests/test_naming.py`.
 - **Details:** tokens: `{date}` → `YYYYMMDD`, `{time}` → `HHMMSS`, `{ms}` →
   3-digit milliseconds, `{ext}` handled separately (always appended from the
-  media's real extension). Presets: `Pixel` → `PXL_{date}_{time}{ms}`;
-  `Generic IMG` → `IMG_{date}_{time}{ms}`; `Plain date` →
-  `{date}_{time}{ms}`. All times UTC. Collision rule: message dates have
+  media's real extension); `{kind}` renders IMG or VID by media type, the
+  way Telegram prefixes its gallery files. Presets: `Telegram` →
+  `{kind}_{date}_{time}_{ms}` (default, D18); `Pixel` →
+  `PXL_{date}_{time}{ms}`; `Plain date` → `{date}_{time}{ms}`. All times
+  UTC. Collision rule: message dates have
   second precision; a `NameAllocator` class takes (datetime, ext) and yields
   names, bumping the millisecond field `000, 001, 002…` for items sharing
   the same second **in message order**, so the same input sequence always
@@ -200,7 +208,7 @@ mechanics with the user **before** any GUI exists.
     [--from YYYY-MM-DD] [--to YYYY-MM-DD] [--no-videos]` with a console
     progress line.
 - **Done when:** *user verifies on the throwaway chat:* full run downloads
-  everything with correct Pixel names; a photo checked with
+  everything with correct Telegram-style names; a photo checked with
   `exiftool` (or macOS Get Info / Google Photos web upload) shows the
   message date; cancelling mid-run (Ctrl+C) and rerunning skips existing
   files and completes; `--from/--to` limits correctly; with ffmpeg absent
@@ -307,7 +315,7 @@ all Telegram work; GUI thread communicates via
 
 - **Objective:** configuration UI.
 - **Files:** `gui/settings.py`, `config.py` (persist template).
-- **Details:** modal with: preset dropdown (Pixel / Generic IMG / Plain
+- **Details:** modal with: preset dropdown (Telegram / Pixel / Plain
   date), editable template field, **live preview** rendered with a fixed
   sample datetime, inline error for invalid templates (from Task 3's
   validator), Save/Cancel. Template persists in the settings JSON and is
@@ -329,8 +337,10 @@ all Telegram work; GUI thread communicates via
   top-to-bottom and perform a clean-machine walkthrough of every command
   (fresh venv). Update anything stale.
 - **Done when:** `pytest` green; *user performs final acceptance:* runs the
-  real family chat download, spot-checks dates in Google Photos, moves
-  files to `/DCIM/Camera` on the Pixel. Their confirmation closes Phase 2.
+  real family chat download, spot-checks dates in Google Photos, copies
+  the photos into `Pictures/Telegram` and the videos into `Movies/Telegram`
+  on the Pixel, and enables Google Photos backup for those device folders.
+  Their confirmation closes Phase 2.
 - **Depends on:** Task 11.
 
 ---
