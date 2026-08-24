@@ -207,6 +207,8 @@ async def run_chats(credentials: Credentials, limit: int) -> None:
 
 
 async def run_download(credentials: Credentials, arguments) -> None:
+    # A long download keeps the app's name in sight from the first line.
+    print(f"Chronogram TG {__version__}\n")
     if arguments.since and arguments.until and arguments.since > arguments.until:
         raise TelegramError("--from must be on or before --to.")
     until_exclusive = arguments.until + timedelta(days=1) if arguments.until else None
@@ -216,7 +218,7 @@ async def run_download(credentials: Credentials, arguments) -> None:
         include_videos = False
         print("ffmpeg was not found, so videos will be skipped. See the README to add it.\n")
 
-    counts = {"done": 0, "total": 0, "width": 0}
+    counts = {"done": 0, "total": 0, "width": 0, "hinted": False}
 
     def render(line: str, percent: int) -> None:
         # Pad to the widest line printed so far, so a shorter update fully
@@ -226,6 +228,13 @@ async def run_download(credentials: Credentials, arguments) -> None:
         print(f"\r{padded}{taskbar_progress(percent)}", end="", flush=True)
 
     def show_progress(done: int, total: int, name: str) -> None:
+        if not counts["hinted"]:
+            # For the 95% who never read a README: cancelling is safe.
+            counts["hinted"] = True
+            print(
+                "(Press Ctrl+C to cancel at any time - running the same "
+                "command again resumes where it left off.)"
+            )
         counts["done"], counts["total"] = done, total
         render(format_progress(done, total, name), progress_percent(done, total))
 
