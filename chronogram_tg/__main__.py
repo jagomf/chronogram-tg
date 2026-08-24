@@ -141,6 +141,11 @@ def print_chats(chats) -> None:
     print(f"\n{len(chats)} chats. Use the id on the left to download from one.")
 
 
+def format_progress(done: int, total: int, name: str) -> str:
+    percent = (done * 100 + total - 1) // total if total else 100  # ceiling
+    return f"{percent:3d}%  {done} / {total}  {name:<40.40}"
+
+
 def print_summary(summary: Summary) -> None:
     print()
     if summary.cancelled:
@@ -193,7 +198,7 @@ async def run_download(credentials: Credentials, arguments) -> None:
         print("ffmpeg was not found, so videos will be skipped. See the README to add it.\n")
 
     def show_progress(done: int, total: int, name: str) -> None:
-        print(f"\r{done} / {total}  {name:<40.40}", end="", flush=True)
+        print(f"\r{format_progress(done, total, name)}", end="", flush=True)
 
     def show_status(message: str) -> None:
         print(f"\n{message}")

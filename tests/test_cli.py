@@ -47,3 +47,12 @@ def test_an_empty_chat_list_says_so_instead_of_printing_nothing(capsys):
     print_chats([])
 
     assert "No chats found." in capsys.readouterr().out
+
+
+def test_progress_shows_percentage_then_counter():
+    from chronogram_tg.__main__ import format_progress
+
+    assert format_progress(347, 1520, "IMG_x.jpg").startswith(" 23%  347 / 1520  IMG_x.jpg")
+    assert format_progress(1520, 1520, "IMG_x.jpg").startswith("100%  1520 / 1520")
+    assert format_progress(1, 1520, "IMG_x.jpg").startswith("  1%  1 / 1520")
+    assert format_progress(0, 1520, "IMG_x.jpg").startswith("  0%  0 / 1520")
