@@ -16,7 +16,7 @@ from pathlib import Path
 
 from . import __version__
 from .config import ConfigError, Credentials, load_credentials, load_settings
-from .downloader import Summary, download_chat
+from .downloader import Summary, download_chat, human_size
 from .metadata import detect_ffmpeg
 from .tg import LoginError, TelegramError, TelegramSession
 
@@ -141,9 +141,26 @@ def print_chats(chats) -> None:
     print(f"\n{len(chats)} chats. Use the id on the left to download from one.")
 
 
+def progress_percent(done: int, total: int) -> int:
+    return (done * 100 + total - 1) // total if total else 100  # ceiling
+
+
 def format_progress(done: int, total: int, name: str) -> str:
-    percent = (done * 100 + total - 1) // total if total else 100  # ceiling
-    return f"{percent:3d}%  {done} / {total}  {name:<40.40}"
+    return f"{progress_percent(done, total):3d}%  {done} / {total}  {name:<40.40}"
+
+
+def taskbar_progress(percent: int | None) -> str:
+    """OSC 9;4 - the taskbar-progress escape ConEmu introduced.
+
+    Windows Terminal paints it on the app's taskbar icon; a few terminals
+    (Ghostty, WezTerm) show it too; everything else, macOS Terminal
+    included, silently ignores it. None clears the indicator.
+    """
+    if not sys.stdout.isatty():
+        return ""
+    if percent is None:
+        return "\x1b]9;4;0;0\x07"
+    return f"\x1b]9;4;1;{percent}\x07"
 
 
 def print_summary(summary: Summary) -> None:
@@ -197,8 +214,24 @@ async def run_download(credentials: Credentials, arguments) -> None:
         include_videos = False
         print("ffmpeg was not found, so videos will be skipped. See the README to add it.\n")
 
+    counts = {"done": 0, "total": 0}
+
     def show_progress(done: int, total: int, name: str) -> None:
-        print(f"\r{format_progress(done, total, name)}", end="", flush=True)
+        counts["done"], counts["total"] = done, total
+        line = format_progress(done, total, name) + " " * 26
+        print(f"\r{line}{taskbar_progress(progress_percent(done, total))}", end="", flush=True)
+
+    def show_bytes(name: str, received: int, expected: int) -> None:
+        # Movement while a single large file downloads, so a long video does
+        # not look like a hang.
+        if not expected:
+            return
+        current = min(counts["done"] + 1, counts["total"]) or 1
+        line = (
+            format_progress(current, counts["total"], name)
+            + f"  {human_size(received)} / {human_size(expected)}"
+        )
+        print(f"\r{line:<110.110}", end="", flush=True)
 
     def show_status(message: str) -> None:
         print(f"\n{message}")
@@ -215,6 +248,7 @@ async def run_download(credentials: Credentials, arguments) -> None:
             clean=arguments.clean,
             on_progress=show_progress,
             on_status=show_status,
+            on_bytes=show_bytes,
         )
         print_summary(summary)
 
@@ -251,6 +285,8 @@ def main(argv: list[str] | None = None) -> int:
             file=sys.stderr,
         )
         return 1
+    finally:
+        print(taskbar_progress(None), end="", flush=True)
     return 0
 
 

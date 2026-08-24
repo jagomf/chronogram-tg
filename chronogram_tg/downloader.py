@@ -52,6 +52,7 @@ FLOOD_RETRY_LIMIT = 5
 
 ProgressCallback = Callable[[int, int, str], None]  # items dealt with, total, latest name
 StatusCallback = Callable[[str], None]
+BytesCallback = Callable[[str, int, int], None]  # filename, bytes received, bytes expected
 
 
 @dataclass(frozen=True)
@@ -162,13 +163,24 @@ def _stamp(item: PlannedItem, path: Path, summary: Summary) -> None:
 
 
 async def _download_patiently(
-    downloads, chat_id: int, item: PlannedItem, path: Path, say: StatusCallback
+    downloads,
+    chat_id: int,
+    item: PlannedItem,
+    path: Path,
+    say: StatusCallback,
+    on_bytes: BytesCallback | None,
 ) -> bool:
     """Download one item, sitting out however long Telegram asks us to."""
+    report = None
+    if on_bytes is not None:
+
+        def report(received, expected):
+            on_bytes(item.filename, int(received), int(expected or 0))
+
     attempts = 0
     while True:
         try:
-            return await downloads.download(chat_id, item.record.message_id, path)
+            return await downloads.download(chat_id, item.record.message_id, path, on_bytes=report)
         except FloodWaitError as error:
             attempts += 1
             if attempts >= FLOOD_RETRY_LIMIT:
@@ -191,6 +203,7 @@ async def download_chat(
     control: DownloadControl | None = None,
     on_progress: ProgressCallback | None = None,
     on_status: StatusCallback | None = None,
+    on_bytes: BytesCallback | None = None,
 ) -> Summary:
     """Download a chat's media into `destination`. Returns the run's Summary."""
     control = control or DownloadControl()
@@ -223,6 +236,7 @@ async def download_chat(
             say(f"Removed {summary.cleaned} files from a previous run; starting over.")
 
     dealt_with = 0
+    tick(0, summary.total, "")  # the baseline, so the counter is visible at once
     async with source.takeout_downloads() as downloads:
         for item in plan:
             if not await control.wait_while_paused():
@@ -242,7 +256,9 @@ async def download_chat(
 
             temporary = _temporary_path(destination, item.filename)
             try:
-                if not await _download_patiently(downloads, chat_id, item, temporary, say):
+                if not await _download_patiently(
+                    downloads, chat_id, item, temporary, say, on_bytes
+                ):
                     summary.missing += 1
                     tick(dealt_with, summary.total, item.filename)
                     continue

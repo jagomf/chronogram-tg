@@ -386,8 +386,12 @@ class MediaDownloads:
         self._client = client
         self._takeout = takeout_proxy
 
-    async def download(self, chat_id: int, message_id: int, path: Path) -> bool:
+    async def download(self, chat_id: int, message_id: int, path: Path, on_bytes=None) -> bool:
         """Fetch one message and download its media to `path`.
+
+        `on_bytes(received, total)` is called as the transfer advances, so
+        the interface can show life during a long video instead of a frozen
+        counter.
 
         Returns False when the message or its media no longer exists (it was
         deleted between the scan and now). The message itself is fetched with
@@ -398,7 +402,9 @@ class MediaDownloads:
         if message is None or (message.photo is None and message.document is None):
             return False
         try:
-            result = await self._takeout.download_media(message, file=str(path))
+            result = await self._takeout.download_media(
+                message, file=str(path), progress_callback=on_bytes
+            )
         except TakeoutInvalidError as error:
             # The reused export expired on Telegram's side. Clear it so the
             # next run authorises a fresh one, and stop the run cleanly.

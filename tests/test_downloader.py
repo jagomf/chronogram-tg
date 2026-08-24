@@ -44,7 +44,7 @@ class FakeSource:
     async def takeout_downloads(self):
         yield self
 
-    async def download(self, chat_id, message_id, path):
+    async def download(self, chat_id, message_id, path, on_bytes=None):
         self.download_calls.append(message_id)
         if message_id in self.flood_pending:
             self.flood_pending.discard(message_id)
@@ -53,6 +53,9 @@ class FakeSource:
             return False
         if message_id in self.broken:
             raise OSError("connection reset")
+        if on_bytes is not None:
+            on_bytes(len(MINIMAL_JPEG) // 2, len(MINIMAL_JPEG))
+            on_bytes(len(MINIMAL_JPEG), len(MINIMAL_JPEG))
         path.write_bytes(MINIMAL_JPEG)
         return True
 
@@ -142,7 +145,8 @@ def test_cancelling_stops_between_items_and_reports_it(tmp_path):
     control = DownloadControl()
 
     def cancel_after_first(done, total, name):
-        control.cancel()
+        if done >= 1:
+            control.cancel()
 
     summary = run(source, tmp_path, control=control, on_progress=cancel_after_first)
 
@@ -172,7 +176,7 @@ def test_progress_counts_every_item_up_to_the_total(tmp_path):
 
     run(source, tmp_path, on_progress=lambda done, total, name: seen.append((done, total)))
 
-    assert seen == [(1, 3), (2, 3), (3, 3)]
+    assert seen == [(0, 3), (1, 3), (2, 3), (3, 3)]
 
 
 def test_the_plan_is_deterministic_between_runs():
@@ -194,7 +198,7 @@ def test_session_level_trouble_stops_the_run_instead_of_repeating_per_file(tmp_p
     from chronogram_tg.tg import TelegramError
 
     class ExpiredSource(FakeSource):
-        async def download(self, chat_id, message_id, path):
+        async def download(self, chat_id, message_id, path, on_bytes=None):
             raise TelegramError("The Telegram export session had expired.")
 
     source = ExpiredSource([record(1), record(2, seconds_later=1)])
@@ -256,3 +260,29 @@ def test_clean_on_a_fresh_folder_is_a_quiet_no_op(tmp_path):
 
     assert (summary.cleaned, summary.downloaded) == (0, 1)
     assert not any("Removed" in message for message in heard)
+
+
+def test_byte_progress_reports_the_file_being_downloaded(tmp_path):
+    source = FakeSource([record(1)])
+    seen = []
+
+    run(
+        source,
+        tmp_path,
+        on_bytes=lambda name, received, expected: seen.append((name, received, expected)),
+    )
+
+    assert seen == [
+        ("IMG_20240815_143022_000.jpg", len(MINIMAL_JPEG) // 2, len(MINIMAL_JPEG)),
+        ("IMG_20240815_143022_000.jpg", len(MINIMAL_JPEG), len(MINIMAL_JPEG)),
+    ]
+
+
+def test_byte_progress_is_not_reported_for_skipped_files(tmp_path):
+    (tmp_path / "IMG_20240815_143022_000.jpg").write_bytes(b"already here")
+    source = FakeSource([record(1)])
+    seen = []
+
+    run(source, tmp_path, on_bytes=lambda *call: seen.append(call))
+
+    assert seen == []
