@@ -47,3 +47,30 @@ class TelegramBridge:
             self._thread.join(timeout)
         if not self._loop.is_closed():
             self._loop.close()
+
+
+POLL_INTERVAL_MS = 50
+
+
+def poll_future(widget, future: Future, on_result, on_error=None) -> None:
+    """Deliver a Future's outcome to callbacks, on the interface thread only.
+
+    Tk is not thread-safe, so the Telegram thread must never call into
+    widgets - not even via add_done_callback. Instead the widget polls the
+    future with `after`, entirely from its own thread, and runs the
+    callback once the result is in. Without on_error, exceptions re-raise.
+    """
+
+    def check() -> None:
+        if not future.done():
+            widget.after(POLL_INTERVAL_MS, check)
+            return
+        error = future.exception()
+        if error is None:
+            on_result(future.result())
+        elif on_error is not None:
+            on_error(error)
+        else:
+            raise error
+
+    widget.after(0, check)

@@ -8,21 +8,31 @@ download itself (10) and the settings dialog (11).
 
 from __future__ import annotations
 
+from tkinter import messagebox
+
 import customtkinter as ctk
 
 from ..config import Credentials
 from ..metadata import detect_ffmpeg
-from .bridge import TelegramBridge
+from ..tg import TelegramSession
+from .bridge import TelegramBridge, poll_future
+from .login import LoginWindow
 
 PAD = 12
 BANNER_TEXT = "⚠ ffmpeg not found — videos are unavailable. See README."
 
 
 class ChronogramApp(ctk.CTk):
-    def __init__(self, credentials: Credentials, bridge: TelegramBridge):
+    def __init__(
+        self,
+        credentials: Credentials,
+        bridge: TelegramBridge | None,
+        session: TelegramSession | None = None,
+    ):
         super().__init__()
         self.credentials = credentials
         self.bridge = bridge
+        self.session = session
 
         self.title("Chronogram TG")
         # A fixed-size form: resizing adds nothing here, and this also greys
@@ -34,6 +44,12 @@ class ChronogramApp(ctk.CTk):
         self.ffmpeg_available = detect_ffmpeg() is not None
         self._build()
         self.protocol("WM_DELETE_WINDOW", self._close)
+
+        if self.bridge is not None and self.session is not None:
+            # Stay hidden until we know whether a login is needed; the login
+            # window, when required, appears on its own (task 7).
+            self.withdraw()
+            self.after(0, self._connect_session)
 
     # ── construction ────────────────────────────────────────────────
 
@@ -136,6 +152,40 @@ class ChronogramApp(ctk.CTk):
         self.cancel_button = ctk.CTkButton(buttons, text="Cancel", state="disabled")
         self.cancel_button.grid(row=0, column=2, padx=(8, 0))
 
+    # ── session startup (task 7) ────────────────────────────────────
+
+    def _connect_session(self) -> None:
+        poll_future(
+            self,
+            self.bridge.submit(self.session.connect()),
+            lambda _: self._check_authorization(),
+            self._fatal,
+        )
+
+    def _check_authorization(self) -> None:
+        poll_future(
+            self,
+            self.bridge.submit(self.session.is_authorized()),
+            self._authorization_known,
+            self._fatal,
+        )
+
+    def _authorization_known(self, authorized: bool) -> None:
+        if authorized:
+            self._show_main()
+        else:
+            LoginWindow(self, self.bridge, self.session, on_success=self._show_main)
+
+    def _show_main(self) -> None:
+        self.deiconify()
+        self.lift()
+
+    def _fatal(self, error: Exception) -> None:
+        # Startup trouble (no internet, rejected credentials): nothing to
+        # recover in-window yet, so say it plainly and leave.
+        messagebox.showerror("Chronogram TG", str(error))
+        self.destroy()
+
     # ── shutdown ────────────────────────────────────────────────────
 
     def _close(self) -> None:
@@ -146,8 +196,13 @@ def launch(credentials: Credentials) -> None:
     """Open the main window; returns when it closes."""
     bridge = TelegramBridge()
     bridge.start()
+    session = TelegramSession(credentials)
     try:
-        app = ChronogramApp(credentials, bridge)
+        app = ChronogramApp(credentials, bridge, session)
         app.mainloop()
     finally:
+        try:
+            bridge.submit(session.disconnect()).result(timeout=5)
+        except Exception:
+            pass  # closing anyway; a hung disconnect must not block exit
         bridge.stop()

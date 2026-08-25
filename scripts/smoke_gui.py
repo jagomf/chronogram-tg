@@ -59,6 +59,69 @@ SCENARIOS = {
         assert application.videos_checkbox.cget("state") == "disabled"
         application.destroy()
     """,
+    "login_flow": """
+        import time
+        import customtkinter as ctk
+        from chronogram_tg.tg import LoginError
+        from chronogram_tg.gui.bridge import TelegramBridge
+        from chronogram_tg.gui.login import LoginWindow, CODE_STEP, PASSWORD_STEP, PHONE_STEP
+
+        class FakeSession:
+            async def send_code(self, phone):
+                if not phone.strip():
+                    raise LoginError("Enter your phone number.")
+
+            async def sign_in_with_code(self, code):
+                if code != "12345":
+                    raise LoginError("That code is not correct. Try again.")
+                return True  # 2FA still needed
+
+            async def sign_in_with_password(self, password):
+                pass
+
+        def pump(condition, why):
+            deadline = time.monotonic() + 5
+            while time.monotonic() < deadline:
+                root.update()
+                if condition():
+                    return
+                time.sleep(0.01)
+            raise AssertionError("timed out waiting for: " + why)
+
+        root = ctk.CTk()
+        root.withdraw()
+        bridge = TelegramBridge()
+        bridge.start()
+        logged_in = []
+        window = LoginWindow(root, bridge, FakeSession(), on_success=lambda: logged_in.append(True))
+
+        window._submit()  # empty phone: inline error, still on the phone step
+        pump(lambda: window.error_label.cget("text") != "", "empty-phone error")
+        assert window.step == PHONE_STEP
+
+        window.entry.insert(0, "+34600112233")
+        window._submit()
+        pump(lambda: window.step == CODE_STEP, "advance to the code step")
+
+        window.entry.insert(0, "99999")  # wrong code: error, stays on code step
+        window._submit()
+        pump(lambda: window.error_label.cget("text") != "", "wrong-code error")
+        assert window.step == CODE_STEP
+
+        window.entry.delete(0, "end")
+        window.entry.insert(0, "12345")
+        window._submit()
+        pump(lambda: window.step == PASSWORD_STEP, "advance to the password step")
+        assert window.entry.cget("show") == "•", "password must be masked"
+        assert window.entry.get() == "", "the code must not linger in the password field"
+
+        window.entry.insert(0, "hunter2")
+        window._submit()
+        pump(lambda: logged_in, "the success callback")
+
+        root.destroy()
+        bridge.stop()
+    """,
 }
 
 

@@ -3,7 +3,7 @@
 **Audience:** the implementing agent (Claude Opus 5).
 **Read first:** [AGENTS.md](AGENTS.md) and [docs/DECISIONS.md](docs/DECISIONS.md).
 
-**Progress:** tasks 1–6 implemented. Task 2 confirmed live on 2026-08-23;
+**Progress:** tasks 1–7 implemented. Task 2 confirmed live on 2026-08-23;
 task 5 exercised live by the owner on a 161-item/6.5 GB test chat through
 2026-08-24 (downloads, cancel, per-file and in-file resume, flood waits) —
 the Google Photos date spot-check folds into task 12's acceptance. ffmpeg
@@ -11,10 +11,12 @@ is installed since 2026-08-24, so the video tests run for real. Milestone A
 (console tool) is closed; CI is green on all platforms including the
 downloader work. On 2026-08-24 the owner changed the destination and
 default naming (decision D18: Telegram gallery folders and Telegram-style
-names instead of `/DCIM/Camera` and Pixel names). Task 6's window shell is
-verified by guarded GUI tests (they skip where no display exists) plus a
-live open/close smoke on the owner's machine; the visual once-over is the
-owner's. Update this line as part of each task's commit.
+names instead of `/DCIM/Camera` and Pixel names). Task 6's window shell and
+task 7's login flow are verified by `scripts/smoke_gui.py` (GUI checks live
+there, never in pytest — see AGENTS.md); task 7 was confirmed live by the
+owner on 2026-08-25 (real phone→code login through the window, entry-size
+and centring polish reviewed over screenshots). Update this line as part
+of each task's commit.
 
 ## Ground rules (apply to every task)
 
