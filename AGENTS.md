@@ -71,6 +71,16 @@ GUI needs it and the machine's default `python3` (pyenv 3.14.6) has no
 The README documents the generic, machine-independent version of this for
 end users; keep both in sync when the run commands change.
 
+**Never construct Tk/CustomTkinter widgets inside the pytest suite.**
+Building and destroying Tk roots in a long-lived pytest process hangs or
+segfaults at teardown on macOS (each crash pops a system dialog on the
+owner's machine). GUI shell checks live in `scripts/smoke_gui.py`, which
+runs each scenario in its own subprocess — run it after touching `gui/`:
+
+```bash
+.venv/bin/python scripts/smoke_gui.py
+```
+
 Manual testing against Telegram requires the user's credentials and
 interactive login — you cannot do it yourself. When a task needs live
 verification, prepare it and ask the user to run the exact command; always

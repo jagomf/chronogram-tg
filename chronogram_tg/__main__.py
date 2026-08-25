@@ -291,6 +291,23 @@ def configure_logging() -> None:
     telethon_logger.propagate = False
 
 
+def run_gui(credentials: Credentials) -> int:
+    try:
+        from .gui.app import launch
+    except ImportError as error:
+        print(
+            f"The graphical interface could not start ({error}).\n"
+            "This Python probably lacks Tk - see the README's requirements "
+            "section. The console commands still work:\n"
+            "  python -m chronogram_tg chats\n"
+            "  python -m chronogram_tg download --chat ID --dest FOLDER",
+            file=sys.stderr,
+        )
+        return 1
+    launch(credentials)
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     arguments = build_parser().parse_args(argv)
     configure_logging()
@@ -302,10 +319,7 @@ def main(argv: list[str] | None = None) -> int:
         return 1
 
     if arguments.command is None:
-        print("Telegram credentials loaded.")
-        print("The graphical interface is not implemented yet - see PLAN.md, task 6.")
-        print("Meanwhile, try: python -m chronogram_tg chats")
-        return 0
+        return run_gui(credentials)
 
     try:
         if arguments.command == "chats":
