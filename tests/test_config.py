@@ -67,13 +67,24 @@ def test_non_numeric_api_id_is_rejected(tmp_path):
 
 def test_settings_survive_a_save_and_load_round_trip(tmp_path):
     path = tmp_path / "settings.json"
-    save_settings(Settings(filename_template="IMG_{date}_{time}{ms}"), path)
+    save_settings(
+        Settings(filename_template="IMG_{date}_{time}{ms}", last_destination="/tmp/rescue"),
+        path,
+    )
 
-    assert load_settings(path).filename_template == "IMG_{date}_{time}{ms}"
+    loaded = load_settings(path)
+    assert loaded.filename_template == "IMG_{date}_{time}{ms}"
+    assert loaded.last_destination == "/tmp/rescue"
 
 
 def test_settings_fall_back_to_defaults_when_absent(tmp_path):
     assert load_settings(tmp_path / "absent.json") == Settings()
+
+
+def test_the_default_download_dir_is_chronogram_inside_downloads():
+    from pathlib import Path
+
+    assert config.DEFAULT_DOWNLOAD_DIR == Path.home() / "Downloads" / "Chronogram"
 
 
 @pytest.mark.parametrize("body", ["{ not json", '"a string"', '{"filename_template": 42}'])

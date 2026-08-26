@@ -3,8 +3,9 @@
 **Audience:** the implementing agent (Claude Opus 5).
 **Read first:** [AGENTS.md](AGENTS.md) and [docs/DECISIONS.md](docs/DECISIONS.md).
 
-**Progress:** tasks 1–8 implemented; task 8 (chat picker) awaits the
-owner's live check. Task 2 confirmed live on 2026-08-23;
+**Progress:** tasks 1–9 implemented; tasks 8 (chat picker) and 9 (scope and
+destination) await the owner's live check. Task 2 confirmed live on
+2026-08-23;
 task 5 exercised live by the owner on a 161-item/6.5 GB test chat through
 2026-08-24 (downloads, cancel, per-file and in-file resume, flood waits) —
 the Google Photos date spot-check folds into task 12's acceptance. ffmpeg
@@ -297,15 +298,19 @@ all Telegram work; GUI thread communicates via
 - **Objective:** remaining pre-download inputs.
 - **Files:** `gui/date_range.py`, `gui/app.py`.
 - **Details:** radio "Whole chat" / "Date range"; the latter opens a modal
-  with from/to date entries (simple validated `YYYY-MM-DD` entries are
-  fine; no calendar-widget dependency). Chosen range stays visible in the
+  with from/to bounds as day/month/year dropdowns (owner decision
+  2026-08-26: no typed dates; Tk has no native OS date dialog, and the
+  no-calendar-dependency rule stands). Chosen range stays visible in the
   main window. Destination folder via `tkinter.filedialog.askdirectory`;
   the chosen folder persists in `settings.json` and is preselected on the
-  next launch (owner request, 2026-08-26). The date-range modal closes on
-  Esc like the chat picker.
+  next launch, and the field is never empty: with nothing remembered it
+  defaults to `~/Downloads/Chronogram`, created only when a download runs
+  (owner requests, 2026-08-26). The date-range modal closes on Esc like the
+  chat picker.
 - **Done when:** invalid dates rejected with inline message; chosen values
-  visible in main window; Start button enables when chat + destination set;
-  a relaunch shows the previous destination already selected.
+  visible in main window; Start button enables when chat + destination set
+  (with the default destination, choosing a chat is enough); a relaunch
+  shows the previous destination already selected.
 - **Depends on:** Task 8.
 
 ### Task 10 — Download wiring: progress, pause/resume, cancel

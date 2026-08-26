@@ -22,6 +22,10 @@ SESSION_FILE = PROJECT_ROOT / "chronogram.session"
 SETTINGS_FILE = PROJECT_ROOT / "settings.json"
 LOG_FILE = PROJECT_ROOT / "chronogram.log"
 
+# The destination offered when none was ever chosen. Not created until a
+# download actually starts. ~/Downloads exists on macOS, Windows and Linux.
+DEFAULT_DOWNLOAD_DIR = Path.home() / "Downloads" / "Chronogram"
+
 API_ID_KEY = "TELEGRAM_API_ID"
 API_HASH_KEY = "TELEGRAM_API_HASH"
 
@@ -69,6 +73,7 @@ class Settings:
     """User preferences that survive between runs."""
 
     filename_template: str = DEFAULT_FILENAME_TEMPLATE
+    last_destination: str = ""  # preselected on the next launch; "" = never chosen
 
 
 def load_credentials(env_file: Path | str | None = None) -> Credentials:

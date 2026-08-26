@@ -200,6 +200,51 @@ SCENARIOS = {
         root.destroy()
         bridge.stop()
     """,
+    "date_range": """
+        from datetime import UTC, datetime
+        import customtkinter as ctk
+        from chronogram_tg.gui.date_range import UNSET, DateRangeWindow
+
+        def set_date(menus, day, month, year):
+            for menu, value in zip(menus, (day, month, year)):
+                menu.set(value)
+
+        root = ctk.CTk()
+        root.withdraw()
+        accepted, closed = [], []
+        window = DateRangeWindow(
+            root, None, None,
+            on_accept=lambda since, until: accepted.append((since, until)),
+            on_close=lambda: closed.append(True),
+        )
+        root.update()
+        assert all(menu.get() == UNSET for menu in window.from_menus), "starts unset"
+
+        set_date(window.from_menus, "15", UNSET, "2024")  # half-set: inline error
+        window._accept()
+        root.update()
+        assert "Complete the date" in window.error_label.cget("text")
+        assert window.winfo_exists() and not accepted
+
+        set_date(window.from_menus, "30", "February", "2023")  # impossible day
+        window._accept()
+        root.update()
+        assert "not a real date" in window.error_label.cget("text")
+
+        set_date(window.from_menus, "01", "June", "2023")
+        set_date(window.to_menus, "01", "January", "2023")  # backwards
+        window._accept()
+        root.update()
+        assert "on or before" in window.error_label.cget("text")
+
+        set_date(window.to_menus, "31", "December", "2023")
+        window._accept()
+        root.update()
+        assert accepted == [(datetime(2023, 6, 1, tzinfo=UTC), datetime(2023, 12, 31, tzinfo=UTC))]
+        assert closed, "on_close must fire when the window goes away"
+
+        root.destroy()
+    """,
 }
 
 

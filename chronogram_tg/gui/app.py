@@ -8,16 +8,18 @@ and the chat picker (task 8). Still placeholders: scope and destination
 
 from __future__ import annotations
 
+from datetime import datetime
 from pathlib import Path
-from tkinter import PhotoImage, messagebox
+from tkinter import PhotoImage, filedialog, messagebox
 
 import customtkinter as ctk
 
-from ..config import Credentials
+from ..config import DEFAULT_DOWNLOAD_DIR, Credentials, load_settings, save_settings
 from ..metadata import detect_ffmpeg
 from ..tg import Chat, TelegramSession
 from .bridge import TelegramBridge, poll_future
 from .chat_picker import FALLBACK_EMOJI, KIND_EMOJI, ChatPicker, ellipsise
+from .date_range import DATE_FORMAT, DateRangeWindow
 from .login import LoginWindow
 from .placement import centre_on_screen
 
@@ -30,6 +32,21 @@ ICON_FILE = Path(__file__).resolve().parent.parent / "assets" / "icon.png"
 VALUE_COLOR = ("gray10", "gray90")
 PLACEHOLDER_COLOR = ("gray60", "gray45")
 UNDERLINE_COLOR = ("gray75", "gray30")
+
+MAX_PATH_CHARS = 38
+
+
+def shorten_path(path: Path) -> str:
+    """A folder path fit for a one-line label: home as ~, tail preserved.
+
+    Paths are cut from the front - the deepest folders are what tells a
+    destination apart, not the volume prefix.
+    """
+    try:
+        text = "~/" + str(path.relative_to(Path.home()))
+    except ValueError:
+        text = str(path)
+    return text if len(text) <= MAX_PATH_CHARS else "…" + text[-(MAX_PATH_CHARS - 1) :]
 
 
 class ChronogramApp(ctk.CTk):
@@ -44,7 +61,9 @@ class ChronogramApp(ctk.CTk):
         self.bridge = bridge
         self.session = session
         self.selected_chat: Chat | None = None
-        self.selected_destination = None  # a Path once task 9 wires it
+        self.selected_destination: Path | None = None
+        self.selected_since: datetime | None = None
+        self.selected_until: datetime | None = None  # inclusive day; task 10 adds the +1
 
         self.title("Chronogram TG")
         self._set_icon()
@@ -142,14 +161,20 @@ class ChronogramApp(ctk.CTk):
         self.scope_value = ctk.StringVar(value="all")
         scope = ctk.CTkFrame(self, fg_color="transparent")
         scope.grid(row=row, column=1, sticky="ew", pady=(PAD, 0))
-        whole_chat_radio = ctk.CTkRadioButton(
+        self.whole_chat_radio = ctk.CTkRadioButton(
             scope, text="Whole chat", variable=self.scope_value, value="all", state="disabled"
         )
-        whole_chat_radio.grid(row=0, column=0, sticky="w")
-        scope_label.bind("<Button-1>", lambda _event: whole_chat_radio.focus_set())
-        ctk.CTkRadioButton(
-            scope, text="Date range", variable=self.scope_value, value="range", state="disabled"
-        ).grid(row=0, column=1, sticky="w", padx=(12, 0))
+        self.whole_chat_radio.grid(row=0, column=0, sticky="w")
+        scope_label.bind("<Button-1>", lambda _event: self.whole_chat_radio.focus_set())
+        self.range_radio = ctk.CTkRadioButton(
+            scope,
+            text="Date range",
+            variable=self.scope_value,
+            value="range",
+            state="disabled",
+            command=self._range_scope_selected,
+        )
+        self.range_radio.grid(row=0, column=1, sticky="w", padx=(12, 0))
         self.range_button = ctk.CTkButton(self, text="Choose dates…", width=130, state="disabled")
         self.range_button.grid(row=row, column=2, sticky="e", padx=(6, PAD), pady=(PAD, 0))
         row += 1
@@ -229,6 +254,17 @@ class ChronogramApp(ctk.CTk):
         self.lift()
         # Only what has working machinery behind it gets enabled.
         self.chat_button.configure(state="normal", command=self._pick_chat)
+        self.whole_chat_radio.configure(state="normal")
+        self.range_radio.configure(state="normal")
+        self.range_button.configure(state="normal", command=self._open_range_modal)
+        self.destination_button.configure(state="normal", command=self._pick_destination)
+        # The destination is never empty: the remembered folder if it still
+        # exists, else ~/Downloads/Chronogram (created when a download runs).
+        stored = load_settings().last_destination
+        if stored and Path(stored).is_dir():
+            self._destination_chosen(Path(stored), persist=False)
+        else:
+            self._destination_chosen(DEFAULT_DOWNLOAD_DIR, persist=False)
 
     # ── chat selection (task 8) ─────────────────────────────────────
 
@@ -247,6 +283,58 @@ class ChronogramApp(ctk.CTk):
         """Start only makes sense with both a chat and a destination."""
         ready = self.selected_chat is not None and self.selected_destination is not None
         self.start_button.configure(state="normal" if ready else "disabled")
+
+    # ── scope and destination (task 9) ──────────────────────────────
+
+    def _range_scope_selected(self) -> None:
+        # Picking the radio without dates yet leads straight into the modal;
+        # cancelling it falls back to the whole chat (see _range_modal_closed).
+        if self.selected_since is None and self.selected_until is None:
+            self._open_range_modal()
+
+    def _open_range_modal(self) -> None:
+        DateRangeWindow(
+            self,
+            self.selected_since,
+            self.selected_until,
+            on_accept=self._range_chosen,
+            on_close=self._range_modal_closed,
+        )
+
+    def _range_chosen(self, since: datetime | None, until: datetime | None) -> None:
+        self.selected_since = since
+        self.selected_until = until
+        self.scope_value.set("range")
+
+        def day(moment: datetime | None) -> str:
+            return moment.strftime(DATE_FORMAT) if moment else "…"
+
+        self.range_radio.configure(text=f"{day(since)} → {day(until)}")
+
+    def _range_modal_closed(self) -> None:
+        if self.selected_since is None and self.selected_until is None:
+            self.scope_value.set("all")
+
+    def _pick_destination(self) -> None:
+        # The preselected folder may not exist yet; the dialog needs a real
+        # starting point, so walk up to the nearest existing ancestor.
+        initial = self.selected_destination or Path.home()
+        while not initial.is_dir() and initial.parent != initial:
+            initial = initial.parent
+        chosen = filedialog.askdirectory(
+            parent=self, initialdir=str(initial), title="Choose the destination folder"
+        )
+        if chosen:
+            self._destination_chosen(Path(chosen), persist=True)
+
+    def _destination_chosen(self, path: Path, persist: bool) -> None:
+        self.selected_destination = path
+        self.destination_label.configure(text=shorten_path(path), text_color=VALUE_COLOR)
+        if persist:
+            settings = load_settings()
+            settings.last_destination = str(path)
+            save_settings(settings)
+        self._refresh_start()
 
     # ── progress bar visibility ─────────────────────────────────────
 
