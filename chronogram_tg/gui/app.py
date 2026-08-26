@@ -8,7 +8,8 @@ download itself (10) and the settings dialog (11).
 
 from __future__ import annotations
 
-from tkinter import messagebox
+from pathlib import Path
+from tkinter import PhotoImage, messagebox
 
 import customtkinter as ctk
 
@@ -20,6 +21,7 @@ from .login import LoginWindow
 
 PAD = 12
 BANNER_TEXT = "⚠ ffmpeg not found — videos are unavailable. See README."
+ICON_FILE = Path(__file__).resolve().parent.parent / "assets" / "icon.png"
 
 
 class ChronogramApp(ctk.CTk):
@@ -35,6 +37,7 @@ class ChronogramApp(ctk.CTk):
         self.session = session
 
         self.title("Chronogram TG")
+        self._set_icon()
         # A fixed-size form: resizing adds nothing here, and this also greys
         # out the maximize button on macOS. No explicit geometry - the window
         # takes its natural compact size from the content, banner included.
@@ -52,6 +55,21 @@ class ChronogramApp(ctk.CTk):
             self.after(0, self._connect_session)
 
     # ── construction ────────────────────────────────────────────────
+
+    def _set_icon(self) -> None:
+        """Show the app icon in the Dock/taskbar.
+
+        `iconphoto(True, ...)` applies to this window and every later
+        toplevel (the login included); on macOS it is also what the Dock
+        shows. The reference is kept on self because Tk drops images that
+        get garbage-collected. A missing or corrupt icon is cosmetic - it
+        must never stop the app.
+        """
+        try:
+            self._icon = PhotoImage(file=ICON_FILE)
+            self.iconphoto(True, self._icon)
+        except Exception:
+            self._icon = None
 
     def _build(self) -> None:
         row = 0

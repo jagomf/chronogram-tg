@@ -38,6 +38,7 @@ SCENARIOS = {
         ):
             assert control.cget("state") == "disabled", "skeleton controls must start disabled"
         assert application.progress_bar.get() == 0
+        assert application._icon is not None, "the app icon must load"
         assert application.resizable() == (False, False), "window must be fixed-size"
         application.update_idletasks()
         assert application.winfo_height() < 420, "window should hug its content"
