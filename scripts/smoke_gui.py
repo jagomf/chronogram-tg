@@ -38,6 +38,15 @@ SCENARIOS = {
         ):
             assert control.cget("state") == "disabled", "skeleton controls must start disabled"
         assert application.progress_bar.get() == 0
+        assert application.progress_bar.winfo_manager() == "", "bar starts hidden"
+        application.show_progress_bar()
+        application.update()
+        assert application.progress_bar.winfo_manager() == "pack", "bar shows on demand"
+        before = application.winfo_reqheight()
+        application.hide_progress_bar()
+        application.update()
+        assert application.progress_bar.winfo_manager() == "", "bar hides again"
+        assert application.winfo_reqheight() == before, "hiding must not resize the window"
         assert application._icon is not None, "the app icon must load"
         assert application.resizable() == (False, False), "window must be fixed-size"
         application.update_idletasks()

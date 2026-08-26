@@ -318,7 +318,9 @@ all Telegram work; GUI thread communicates via
   item and re-enables the form. FloodWait shows a status line ("Telegram
   asked to wait 42 s — resuming automatically"). Errors on individual items
   are counted and listed at the end, not fatal. Inputs are disabled while
-  running.
+  running. The progress bar is hidden while no transfer runs — use the
+  existing show/hide_progress_bar helpers: show on Start, keep during
+  pause, hide on cancel and on completion (owner request, 2026-08-26).
 - **Done when:** *user verifies on the throwaway chat:* full GUI run
   matches the Task 5 CLI results; pause/resume and cancel behave; UI stays
   responsive throughout; relaunching resumes.
