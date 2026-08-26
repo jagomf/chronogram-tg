@@ -22,6 +22,7 @@ from .chat_picker import FALLBACK_EMOJI, KIND_EMOJI, ChatPicker, ellipsise
 from .date_range import DATE_FORMAT, DateRangeWindow
 from .login import LoginWindow
 from .placement import centre_on_screen
+from .widgets import DimButton
 
 PAD = 12
 BANNER_TEXT = "⚠ ffmpeg not found — videos are unavailable. See README."
@@ -110,7 +111,7 @@ class ChronogramApp(ctk.CTk):
         ctk.CTkLabel(header, text="Chronogram TG", font=ctk.CTkFont(size=18, weight="bold")).grid(
             row=0, column=0, sticky="w"
         )
-        self.settings_button = ctk.CTkButton(
+        self.settings_button = DimButton(
             header, text="⚙️", width=40, font=ctk.CTkFont(size=20), state="disabled"
         )
         self.settings_button.grid(row=0, column=1, sticky="e")
@@ -146,7 +147,7 @@ class ChronogramApp(ctk.CTk):
             ctk.CTkFrame(field, height=1, corner_radius=0, fg_color=UNDERLINE_COLOR).grid(
                 row=1, column=0, sticky="ew"
             )
-            button = ctk.CTkButton(self, text=button_text, width=130, state="disabled")
+            button = DimButton(self, text=button_text, width=130, state="disabled")
             button.grid(row=row, column=2, sticky="e", padx=(6, PAD), pady=(PAD, 0))
             label_widget.bind("<Button-1>", lambda _event, target=button: target.focus_set())
             row += 1
@@ -175,7 +176,7 @@ class ChronogramApp(ctk.CTk):
             command=self._range_scope_selected,
         )
         self.range_radio.grid(row=0, column=1, sticky="w", padx=(12, 0))
-        self.range_button = ctk.CTkButton(self, text="Choose dates…", width=130, state="disabled")
+        self.range_button = DimButton(self, text="Choose dates…", width=130, state="disabled")
         self.range_button.grid(row=row, column=2, sticky="e", padx=(6, PAD), pady=(PAD, 0))
         row += 1
 
@@ -218,11 +219,15 @@ class ChronogramApp(ctk.CTk):
         buttons = ctk.CTkFrame(self, fg_color="transparent")
         # No sticky: the frame centres itself in its row, resize or not.
         buttons.grid(row=row, column=0, columnspan=3, padx=PAD, pady=PAD)
-        self.start_button = ctk.CTkButton(buttons, text="▶️ Start", state="disabled")
+        # The command is what makes CTk show the pointing-hand cursor on an
+        # enabled button, so Start carries one from the beginning.
+        self.start_button = DimButton(
+            buttons, text="▶️ Start", state="disabled", command=self._start_download
+        )
         self.start_button.grid(row=0, column=0)
-        self.pause_button = ctk.CTkButton(buttons, text="⏸️ Pause", state="disabled")
+        self.pause_button = DimButton(buttons, text="⏸️ Pause", state="disabled")
         self.pause_button.grid(row=0, column=1, padx=(8, 0))
-        self.cancel_button = ctk.CTkButton(buttons, text="⏹️ Cancel", state="disabled")
+        self.cancel_button = DimButton(buttons, text="⏹️ Cancel", state="disabled")
         self.cancel_button.grid(row=0, column=2, padx=(8, 0))
 
     # ── session startup (task 7) ────────────────────────────────────
@@ -335,6 +340,10 @@ class ChronogramApp(ctk.CTk):
             settings.last_destination = str(path)
             save_settings(settings)
         self._refresh_start()
+
+    def _start_download(self) -> None:
+        # Task 10 replaces this with the real download wiring.
+        self.progress_label.configure(text="Downloading is not wired up yet — next task.")
 
     # ── progress bar visibility ─────────────────────────────────────
 

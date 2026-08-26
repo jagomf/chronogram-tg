@@ -37,6 +37,14 @@ SCENARIOS = {
             application.settings_button,
         ):
             assert control.cget("state") == "disabled", "skeleton controls must start disabled"
+        from chronogram_tg.gui.widgets import DISABLED_FG
+        button = application.chat_button
+        assert button.cget("fg_color") == DISABLED_FG, "disabled buttons dim fully"
+        button.configure(state="normal")
+        application.update()
+        assert button.cget("fg_color") != DISABLED_FG, "enabling restores the colour"
+        button.configure(state="disabled")
+
         assert application.progress_bar.get() == 0
         assert application.progress_bar.winfo_manager() == "", "bar starts hidden"
         application.show_progress_bar()

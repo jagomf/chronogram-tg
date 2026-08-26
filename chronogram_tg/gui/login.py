@@ -13,6 +13,7 @@ import customtkinter as ctk
 from ..tg import LoginError, TelegramError
 from .bridge import TelegramBridge, poll_future
 from .placement import centre_on_screen
+from .widgets import DimButton
 
 PAD = 16
 
@@ -79,7 +80,7 @@ class LoginWindow(ctk.CTkToplevel):
         )
         self.error_label.grid(row=4, column=0, sticky="ew", padx=PAD, pady=(4, 0))
 
-        self.action_button = ctk.CTkButton(self, text=BUTTONS[self.step], command=self._submit)
+        self.action_button = DimButton(self, text=BUTTONS[self.step], command=self._submit)
         self.action_button.grid(row=5, column=0, padx=PAD, pady=PAD)
 
         centre_on_screen(self)
