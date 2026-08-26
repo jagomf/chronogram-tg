@@ -1,9 +1,9 @@
 """The main window.
 
-This is the task-6 skeleton: every control of the final layout is present
-and positioned, but only the pieces that need no Telegram traffic are live.
-Later tasks wire the chat picker (8), the scope and destination (9), the
-download itself (10) and the settings dialog (11).
+Every control of the final layout is present and positioned; they come to
+life one task at a time. Wired so far: session startup and login (task 7)
+and the chat picker (task 8). Still placeholders: scope and destination
+(task 9), the download itself (task 10) and the settings dialog (task 11).
 """
 
 from __future__ import annotations
@@ -15,9 +15,11 @@ import customtkinter as ctk
 
 from ..config import Credentials
 from ..metadata import detect_ffmpeg
-from ..tg import TelegramSession
+from ..tg import Chat, TelegramSession
 from .bridge import TelegramBridge, poll_future
+from .chat_picker import FALLBACK_EMOJI, KIND_EMOJI, ChatPicker, ellipsise
 from .login import LoginWindow
+from .placement import centre_on_screen
 
 PAD = 12
 BANNER_TEXT = "⚠ ffmpeg not found — videos are unavailable. See README."
@@ -35,6 +37,8 @@ class ChronogramApp(ctk.CTk):
         self.credentials = credentials
         self.bridge = bridge
         self.session = session
+        self.selected_chat: Chat | None = None
+        self.selected_destination = None  # a Path once task 9 wires it
 
         self.title("Chronogram TG")
         self._set_icon()
@@ -46,6 +50,7 @@ class ChronogramApp(ctk.CTk):
 
         self.ffmpeg_available = detect_ffmpeg() is not None
         self._build()
+        centre_on_screen(self)
         self.protocol("WM_DELETE_WINDOW", self._close)
 
         if self.bridge is not None and self.session is not None:
@@ -197,6 +202,26 @@ class ChronogramApp(ctk.CTk):
     def _show_main(self) -> None:
         self.deiconify()
         self.lift()
+        # Only what has working machinery behind it gets enabled.
+        self.chat_button.configure(state="normal", command=self._pick_chat)
+
+    # ── chat selection (task 8) ─────────────────────────────────────
+
+    def _pick_chat(self) -> None:
+        ChatPicker(self, self.bridge, self.session, on_choose=self._chat_chosen)
+
+    def _chat_chosen(self, chat: Chat) -> None:
+        self.selected_chat = chat
+        self.chat_label.configure(
+            text=f"{ellipsise(chat.title)}  {KIND_EMOJI.get(chat.kind, FALLBACK_EMOJI)}",
+            text_color=("gray10", "gray90"),
+        )
+        self._refresh_start()
+
+    def _refresh_start(self) -> None:
+        """Start only makes sense with both a chat and a destination."""
+        ready = self.selected_chat is not None and self.selected_destination is not None
+        self.start_button.configure(state="normal" if ready else "disabled")
 
     def _fatal(self, error: Exception) -> None:
         # Startup trouble (no internet, rejected credentials): nothing to

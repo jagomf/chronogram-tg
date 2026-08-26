@@ -123,6 +123,74 @@ SCENARIOS = {
         root.destroy()
         bridge.stop()
     """,
+    "chat_picker": """
+        import time
+        import customtkinter as ctk
+        from chronogram_tg.tg import Chat, TelegramError
+        from chronogram_tg.gui.bridge import TelegramBridge
+        from chronogram_tg.gui.chat_picker import ChatPicker
+
+        CHATS = [
+            Chat(id=1, title="Mum", kind="person"),
+            Chat(id=2, title="Family group", kind="group"),
+            Chat(id=3, title="Family news channel", kind="channel"),
+            Chat(id=4, title="Work", kind="group"),
+        ]
+
+        class FakeSession:
+            def __init__(self):
+                self.fail_next = True
+
+            async def list_chats(self, limit=None):
+                if self.fail_next:
+                    self.fail_next = False
+                    raise TelegramError("Could not reach Telegram.")
+                return CHATS
+
+        def pump(condition, why):
+            deadline = time.monotonic() + 5
+            while time.monotonic() < deadline:
+                root.update()
+                if condition():
+                    return
+                time.sleep(0.01)
+            raise AssertionError("timed out waiting for: " + why)
+
+        root = ctk.CTk()
+        root.withdraw()
+        bridge = TelegramBridge()
+        bridge.start()
+        chosen = []
+        picker = ChatPicker(root, bridge, FakeSession(), on_choose=chosen.append)
+
+        # First load fails: the error shows and Try again appears.
+        pump(lambda: "Could not reach" in picker.status.cget("text"), "the load error")
+        pump(lambda: picker.retry_button.winfo_manager() != "", "the retry button")
+
+        picker._load()  # what Try again invokes
+        pump(lambda: len(picker.filtered) == 4, "all chats after a retry")
+
+        picker.search.insert(0, "fam")  # case-insensitive substring filter
+        picker._refilter()
+        pump(lambda: len(picker.filtered) == 2, "the filtered list")
+        assert [c.title for c in picker.filtered] == ["Family group", "Family news channel"]
+
+        picker.kind_pills.set("📢 Channels")  # pills combine with the search text
+        picker._refilter()
+        pump(lambda: len(picker.filtered) == 1, "the pill-narrowed list")
+        assert picker.filtered[0].title == "Family news channel"
+
+        picker.kind_pills.set("All")
+        picker._refilter()
+        pump(lambda: len(picker.filtered) == 2, "back to the search-only filter")
+
+        picker._choose(picker.filtered[0])
+        assert chosen and chosen[0].title == "Family group"
+        pump(lambda: not picker.winfo_exists(), "the picker to close on choice")
+
+        root.destroy()
+        bridge.stop()
+    """,
 }
 
 

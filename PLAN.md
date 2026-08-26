@@ -3,7 +3,8 @@
 **Audience:** the implementing agent (Claude Opus 5).
 **Read first:** [AGENTS.md](AGENTS.md) and [docs/DECISIONS.md](docs/DECISIONS.md).
 
-**Progress:** tasks 1–7 implemented. Task 2 confirmed live on 2026-08-23;
+**Progress:** tasks 1–8 implemented; task 8 (chat picker) awaits the
+owner's live check. Task 2 confirmed live on 2026-08-23;
 task 5 exercised live by the owner on a 161-item/6.5 GB test chat through
 2026-08-24 (downloads, cancel, per-file and in-file resume, flood waits) —
 the Google Photos date spot-check folds into task 12's acceptance. ffmpeg
@@ -69,7 +70,9 @@ of each task's commit.
 - UI: CustomTkinter, English strings, download in a worker thread,
   pause/resume/cancel, progress `n / total`, ffmpeg banner, chat-picker
   modal with search, date-range modal, settings modal (pattern + live
-  preview + presets, logout with confirmation).
+  preview + presets, logout with confirmation). All modals close on Esc —
+  except the login window, where closing quits the app (owner-approved
+  convention, 2026-08-26). Windows open centred on the screen.
 
 ## Proposed code layout
 
@@ -296,9 +299,13 @@ all Telegram work; GUI thread communicates via
 - **Details:** radio "Whole chat" / "Date range"; the latter opens a modal
   with from/to date entries (simple validated `YYYY-MM-DD` entries are
   fine; no calendar-widget dependency). Chosen range stays visible in the
-  main window. Destination folder via `tkinter.filedialog.askdirectory`.
+  main window. Destination folder via `tkinter.filedialog.askdirectory`;
+  the chosen folder persists in `settings.json` and is preselected on the
+  next launch (owner request, 2026-08-26). The date-range modal closes on
+  Esc like the chat picker.
 - **Done when:** invalid dates rejected with inline message; chosen values
-  visible in main window; Start button enables when chat + destination set.
+  visible in main window; Start button enables when chat + destination set;
+  a relaunch shows the previous destination already selected.
 - **Depends on:** Task 8.
 
 ### Task 10 — Download wiring: progress, pause/resume, cancel
