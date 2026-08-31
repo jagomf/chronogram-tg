@@ -292,6 +292,63 @@ SCENARIOS = {
         assert "Start continues it" in application.resume_hint.cget("text"), "the hint returns"
         application.destroy()
     """,
+    "settings": """
+        import customtkinter as ctk
+        from chronogram_tg.gui import settings as settings_module
+        from chronogram_tg.gui.settings import CUSTOM_LABEL, SettingsWindow
+        from chronogram_tg.naming import PIXEL_TEMPLATE, TELEGRAM_TEMPLATE
+
+        root = ctk.CTk()
+        root.withdraw()
+        saved, logged_out = [], []
+        window = SettingsWindow(
+            root, TELEGRAM_TEMPLATE, on_save=saved.append, on_logout=lambda: logged_out.append(True)
+        )
+        root.update()
+        assert window.preset_menu.get() == "Telegram", "the current template picks its preset"
+        preview_text = window.preview_label.cget("text")
+        assert "IMG_20240815_143022_000.jpg" in preview_text
+        assert "VID_20240815_143022_000.mp4" in preview_text, "the video example shows {kind}"
+        assert window.save_button.cget("state") == "disabled", "no changes yet: Save sleeps"
+
+        window._preset_picked("Pixel")  # what the dropdown invokes
+        root.update()
+        assert window.template_value.get() == PIXEL_TEMPLATE
+        assert "PXL_20240815_143022000.jpg" in window.preview_label.cget("text")
+        assert window.save_button.cget("state") == "normal", "a change arms Save"
+
+        window._preset_picked("Telegram")  # back to how the window opened
+        root.update()
+        assert window.save_button.cget("state") == "disabled", "back to the start: Save sleeps"
+
+        window.template_value.set("{bad}")  # unknown token: inline error, Save sleeps
+        root.update()
+        assert "{bad}" in window.error_label.cget("text")
+        assert window.save_button.cget("state") == "disabled"
+        assert window.preview_label.cget("text") == ""
+        assert window.preset_menu.get() == CUSTOM_LABEL
+
+        window.template_value.set("{kind}-{date}")  # valid again
+        root.update()
+        assert window.error_label.cget("text") == ""
+        assert window.save_button.cget("state") == "normal"
+        window._save()
+        root.update()
+        assert saved == ["{kind}-{date}"]
+        assert not window.winfo_exists(), "saving closes the window"
+
+        window = SettingsWindow(
+            root, TELEGRAM_TEMPLATE, on_save=saved.append, on_logout=lambda: logged_out.append(True)
+        )
+        root.update()
+        settings_module.messagebox.askyesno = lambda *args, **kwargs: True
+        window._confirm_logout()
+        root.update()
+        assert logged_out == [True]
+        assert not window.winfo_exists(), "logging out closes the window"
+
+        root.destroy()
+    """,
     "date_range": """
         from datetime import UTC, datetime
         import customtkinter as ctk

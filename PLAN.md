@@ -3,9 +3,11 @@
 **Audience:** the implementing agent (Claude Opus 5).
 **Read first:** [AGENTS.md](AGENTS.md) and [docs/DECISIONS.md](docs/DECISIONS.md).
 
-**Progress:** tasks 1–10 implemented; tasks 8 and 9 were confirmed live by
-the owner on 2026-08-31; task 10 (download wiring) awaits the owner's live
-check on the throwaway chat. Task 2 confirmed live on 2026-08-23;
+**Progress:** tasks 1–11 implemented; tasks 8 and 9 were confirmed live by
+the owner on 2026-08-31, and tasks 10 and 11 on 2026-09-01 (pause, cancel,
+resume and the full GUI run on the throwaway chat; presets, invalid
+patterns and logout→login in settings). Next: task 12. Task 2 confirmed
+live on 2026-08-23;
 task 5 exercised live by the owner on a 161-item/6.5 GB test chat through
 2026-08-24 (downloads, cancel, per-file and in-file resume, flood waits) —
 the Google Photos date spot-check folds into task 12's acceptance. ffmpeg
@@ -345,8 +347,9 @@ all Telegram work; GUI thread communicates via
 - **Details:** modal with: preset dropdown (Telegram / Pixel / Plain
   date), editable template field, **live preview** rendered with a fixed
   sample datetime, inline error for invalid templates (from Task 3's
-  validator), Save/Cancel. Template persists in the settings JSON and is
-  used by the downloader. Logout button → confirmation dialog ("Log out?
+  validator), Save/Cancel. Save only arms while the pattern differs from
+  the one the window opened with (owner request, 2026-09-01). Template
+  persists in the settings JSON and is used by the downloader. Logout button → confirmation dialog ("Log out?
   You will need to enter the code again") → Telethon `log_out()` + session
   file removal → back to login window (D8).
 - **Done when:** *user verifies:* changing preset changes downloaded names;

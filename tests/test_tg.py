@@ -109,6 +109,23 @@ def test_a_session_that_never_had_a_takeout_loads_as_none(tmp_path):
         second.close()
 
 
+def test_deleting_the_session_removes_the_takeout_sidecar_too(tmp_path):
+    # Logout deletes the session; a surviving sidecar would resume a takeout
+    # that belongs to whoever was logged in before.
+    from chronogram_tg.tg import RepairedSQLiteSession
+
+    path = str(tmp_path / "leaving.session")
+    session = RepairedSQLiteSession(path)
+    session.takeout_id = 123456789
+    sidecar = tmp_path / "leaving.session.takeout"
+    assert sidecar.exists()
+    session.close()
+
+    session.delete()
+
+    assert not sidecar.exists()
+
+
 MOMENT = __import__("datetime").datetime(2024, 8, 15, 14, 30, 22, tzinfo=__import__("datetime").UTC)
 
 

@@ -113,6 +113,12 @@ class RepairedSQLiteSession(SQLiteSession):
         finally:
             self._takeout_id = remembered
 
+    def delete(self):
+        # Logging out deletes the session file; the sidecar goes with it,
+        # or the next login would resume a takeout of the wrong account.
+        self._sidecar.unlink(missing_ok=True)
+        return super().delete()
+
 
 class TelegramError(Exception):
     """Something went wrong talking to Telegram.

@@ -1,9 +1,8 @@
 """The main window.
 
-Every control of the final layout is present and positioned; they come to
-life one task at a time. Wired so far: session startup and login (task 7),
-the chat picker (task 8), scope and destination (task 9) and the download
-itself (task 10). Still a placeholder: the settings dialog (task 11).
+Every control is live: session startup and login (task 7), the chat picker
+(task 8), scope and destination (task 9), the download itself (task 10)
+and the settings dialog with logout (task 11).
 """
 
 from __future__ import annotations
@@ -24,6 +23,7 @@ from .chat_picker import FALLBACK_EMOJI, KIND_EMOJI, ChatPicker, ellipsise
 from .date_range import DATE_FORMAT, DateRangeWindow
 from .login import LoginWindow
 from .placement import centre_on_screen
+from .settings import SettingsWindow
 from .widgets import DimButton
 
 PAD = 12
@@ -38,6 +38,7 @@ UNDERLINE_COLOR = ("gray75", "gray30")
 
 MAX_PATH_CHARS = 38
 
+CHAT_PLACEHOLDER = "No chat selected"
 PAUSE_TEXT = "⏸️ Pause"
 RESUME_TEXT = "▶️ Resume"
 RESUME_HINT = "If an earlier download was cut short, Start continues it — nothing is fetched twice."
@@ -242,9 +243,7 @@ class ChronogramApp(ctk.CTk):
             row += 1
             return value_label, button
 
-        self.chat_label, self.chat_button = picker_row(
-            "💬 Chat", "No chat selected", "Choose chat…"
-        )
+        self.chat_label, self.chat_button = picker_row("💬 Chat", CHAT_PLACEHOLDER, "Choose chat…")
 
         scope_label = ctk.CTkLabel(self, text="📅 Scope", anchor="w", cursor="hand2")
         scope_label.grid(row=row, column=0, sticky="w", padx=(PAD, 6), pady=(PAD, 0))
@@ -362,12 +361,12 @@ class ChronogramApp(ctk.CTk):
     def _show_main(self) -> None:
         self.deiconify()
         self.lift()
-        # Only what has working machinery behind it gets enabled.
         self.chat_button.configure(state="normal", command=self._pick_chat)
         self.whole_chat_radio.configure(state="normal")
         self.range_radio.configure(state="normal")
         self.range_button.configure(state="normal", command=self._open_range_modal)
         self.destination_button.configure(state="normal", command=self._pick_destination)
+        self.settings_button.configure(state="normal", command=self._open_settings)
         # The destination is never empty: the remembered folder if it still
         # exists, else ~/Downloads/Chronogram (created when a download runs).
         stored = load_settings().last_destination
@@ -490,6 +489,7 @@ class ChronogramApp(ctk.CTk):
             self.range_radio,
             self.range_button,
             self.destination_button,
+            self.settings_button,
         ):
             widget.configure(state=form_state)
         if self.ffmpeg_available:
@@ -583,6 +583,54 @@ class ChronogramApp(ctk.CTk):
         self.progress_label.configure(text="The download stopped.")
         prefix = "" if isinstance(error, TelegramError) else f"{type(error).__name__}: "
         messagebox.showerror("Chronogram TG", f"{prefix}{error}")
+
+    # ── settings and logout (task 11) ───────────────────────────────
+
+    def _open_settings(self) -> None:
+        SettingsWindow(
+            self,
+            load_settings().filename_template,
+            on_save=self._template_saved,
+            on_logout=self._log_out,
+        )
+
+    def _template_saved(self, template: str) -> None:
+        settings = load_settings()
+        settings.filename_template = template
+        save_settings(settings)
+
+    def _log_out(self) -> None:
+        # Back to the login window (D8). The selection is account-bound, so
+        # it resets; the destination and pattern are this machine's and stay.
+        self.selected_chat = None
+        self.chat_label.configure(text=CHAT_PLACEHOLDER, text_color=PLACEHOLDER_COLOR)
+        for widget in (
+            self.chat_button,
+            self.whole_chat_radio,
+            self.range_radio,
+            self.range_button,
+            self.destination_button,
+            self.settings_button,
+            self.start_button,
+        ):
+            widget.configure(state="disabled")
+        self.withdraw()
+        poll_future(
+            self,
+            self.bridge.submit(self.session.log_out()),
+            lambda _: self._reconnect_for_login(),
+            self._fatal,
+        )
+
+    def _reconnect_for_login(self) -> None:
+        # log_out tears the client down and deletes the session file, so a
+        # fresh connection must exist before the login steps can run.
+        poll_future(
+            self,
+            self.bridge.submit(self.session.connect()),
+            lambda _: LoginWindow(self, self.bridge, self.session, on_success=self._show_main),
+            self._fatal,
+        )
 
     # ── progress bar visibility ─────────────────────────────────────
 
