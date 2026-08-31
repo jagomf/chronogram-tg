@@ -80,11 +80,18 @@ class Summary:
     cancelled: bool = False
 
 
+class _RunCancelled(Exception):
+    """Raised by the chunk gate when a cancel arrives mid-file."""
+
+
 class DownloadControl:
     """Pause/resume/cancel flags, safe to flip from another thread.
 
     The GUI toggles these from the interface thread while the download loop
     reads them from the asyncio thread; threading.Event is safe for that.
+    Both flags land between chunks of the file in flight, not between items,
+    so pausing or cancelling during a gigabyte video takes effect at once —
+    the partial file stays on disk and resumes later (D11).
     """
 
     def __init__(self):
@@ -173,6 +180,7 @@ async def _download_patiently(
     path: Path,
     say: StatusCallback,
     on_bytes: BytesCallback | None,
+    gate,
 ) -> bool:
     """Download one item, sitting out however long Telegram asks us to."""
     report = None
@@ -184,7 +192,9 @@ async def _download_patiently(
     attempts = 0
     while True:
         try:
-            return await downloads.download(chat_id, item.record.message_id, path, on_bytes=report)
+            return await downloads.download(
+                chat_id, item.record.message_id, path, on_bytes=report, gate=gate
+            )
         except FloodWaitError as error:
             attempts += 1
             if attempts >= FLOOD_RETRY_LIMIT:
@@ -239,6 +249,13 @@ async def download_chat(
         if summary.cleaned:
             say(f"Removed {summary.cleaned} files from a previous run; starting over.")
 
+    async def gate():
+        # Awaited between chunks of the file in flight: this is what makes
+        # Pause hold a gigabyte video mid-transfer instead of after it, and
+        # what lets Cancel abandon it at once (partial kept, resumes later).
+        if not await control.wait_while_paused():
+            raise _RunCancelled
+
     dealt_with = 0
     tick(0, summary.total, "")  # the baseline, so the counter is visible at once
     async with source.takeout_downloads() as downloads:
@@ -268,7 +285,7 @@ async def download_chat(
                 on_bytes(item.filename, None, item.record.size)
             try:
                 if not await _download_patiently(
-                    downloads, chat_id, item, temporary, say, on_bytes
+                    downloads, chat_id, item, temporary, say, on_bytes, gate
                 ):
                     summary.missing += 1
                     tick(dealt_with, summary.total, item.filename)
@@ -276,6 +293,10 @@ async def download_chat(
                 _stamp(item, temporary, summary)
                 temporary.replace(target)
                 summary.downloaded += 1
+            except _RunCancelled:
+                # Cancelled mid-file: the partial stays and resumes later.
+                summary.cancelled = True
+                break
             except TelegramError:
                 # Session-level trouble (expired export, lost login) affects
                 # every remaining item: stop the run instead of logging it

@@ -383,7 +383,9 @@ def describe_media(message) -> MediaRecord | None:
     return None
 
 
-async def _append_download(path: Path, expected_size: int, open_stream, on_bytes=None) -> None:
+async def _append_download(
+    path: Path, expected_size: int, open_stream, on_bytes=None, gate=None
+) -> None:
     """Download to `path`, continuing a previous partial file if one exists.
 
     `open_stream(offset)` must return an async iterator of chunks starting at
@@ -391,6 +393,10 @@ async def _append_download(path: Path, expected_size: int, open_stream, on_bytes
     alignment and continued, so a cancelled 1 GB video does not start over.
     Raises OSError when the result does not reach the expected size; the
     partial is deleted then, so the next run restarts that file cleanly.
+
+    `gate`, when given, is awaited between chunks: it is where a pause
+    blocks mid-file, and it may raise to abandon the transfer — the partial
+    written so far is kept then, ready to resume.
     """
     start = 0
     if path.exists():
@@ -408,6 +414,8 @@ async def _append_download(path: Path, expected_size: int, open_stream, on_bytes
             received += len(chunk)
             if on_bytes is not None:
                 on_bytes(received, expected_size)
+            if gate is not None:
+                await gate()
 
     if received != expected_size:
         path.unlink(missing_ok=True)
@@ -423,12 +431,16 @@ class MediaDownloads:
         self._client = client
         self._takeout = takeout_proxy
 
-    async def download(self, chat_id: int, message_id: int, path: Path, on_bytes=None) -> bool:
+    async def download(
+        self, chat_id: int, message_id: int, path: Path, on_bytes=None, gate=None
+    ) -> bool:
         """Fetch one message and download its media to `path`.
 
         `on_bytes(received, total)` is called as the transfer advances, so
         the interface can show life during a long video instead of a frozen
-        counter.
+        counter. `gate` is awaited between chunks of a resumable document
+        download (see _append_download): pauses block there, and it may
+        raise to abandon the file mid-transfer, partial kept.
 
         Returns False when the message or its media no longer exists (it was
         deleted between the scan and now). The message itself is fetched with
@@ -447,7 +459,7 @@ class MediaDownloads:
                 def open_stream(offset):
                     return self._takeout.iter_download(document, offset=offset)
 
-                await _append_download(path, expected, open_stream, on_bytes)
+                await _append_download(path, expected, open_stream, on_bytes, gate)
                 return True
             result = await self._takeout.download_media(
                 message, file=str(path), progress_callback=on_bytes

@@ -1,22 +1,24 @@
 """The main window.
 
 Every control of the final layout is present and positioned; they come to
-life one task at a time. Wired so far: session startup and login (task 7)
-and the chat picker (task 8). Still placeholders: scope and destination
-(task 9), the download itself (task 10) and the settings dialog (task 11).
+life one task at a time. Wired so far: session startup and login (task 7),
+the chat picker (task 8), scope and destination (task 9) and the download
+itself (task 10). Still a placeholder: the settings dialog (task 11).
 """
 
 from __future__ import annotations
 
-from datetime import datetime
+import threading
+from datetime import datetime, timedelta
 from pathlib import Path
 from tkinter import PhotoImage, filedialog, messagebox
 
 import customtkinter as ctk
 
 from ..config import DEFAULT_DOWNLOAD_DIR, Credentials, load_settings, save_settings
+from ..downloader import DownloadControl, Summary, download_chat, human_size
 from ..metadata import detect_ffmpeg
-from ..tg import Chat, TelegramSession
+from ..tg import Chat, TelegramError, TelegramSession
 from .bridge import TelegramBridge, poll_future
 from .chat_picker import FALLBACK_EMOJI, KIND_EMOJI, ChatPicker, ellipsise
 from .date_range import DATE_FORMAT, DateRangeWindow
@@ -35,6 +37,87 @@ PLACEHOLDER_COLOR = ("gray60", "gray45")
 UNDERLINE_COLOR = ("gray75", "gray30")
 
 MAX_PATH_CHARS = 38
+
+PAUSE_TEXT = "⏸️ Pause"
+RESUME_TEXT = "▶️ Resume"
+RESUME_HINT = "If an earlier download was cut short, Start continues it — nothing is fetched twice."
+MAX_LISTED_PROBLEMS = 20
+FEED_POLL_MS = 100
+
+
+class RunFeed:
+    """Where the downloader's callbacks land during a run.
+
+    The callbacks fire on the Telegram thread, and Tk widgets must only be
+    touched from the interface thread — so they write plain data under a
+    lock here, and a Tk `after` loop drains it. Only the latest progress
+    and byte counts matter; status lines are kept in order.
+    """
+
+    def __init__(self):
+        self._lock = threading.Lock()
+        self._progress: tuple[int, int, str] | None = None
+        self._bytes: tuple[str, int | None, int] | None = None
+        self._statuses: list[str] = []
+
+    def on_progress(self, done: int, total: int, name: str) -> None:
+        with self._lock:
+            self._progress = (done, total, name)
+            self._bytes = None  # the finished file's byte count is stale now
+
+    def on_bytes(self, name: str, received: int | None, expected: int) -> None:
+        with self._lock:
+            self._bytes = (name, received, expected)
+
+    def on_status(self, message: str) -> None:
+        with self._lock:
+            self._statuses.append(message)
+
+    def drain(self) -> tuple[tuple | None, tuple | None, list[str]]:
+        with self._lock:
+            statuses, self._statuses = self._statuses, []
+            return self._progress, self._bytes, statuses
+
+
+def run_fraction(progress: tuple[int, int, str], bytes_state: tuple | None) -> float:
+    """The bar's fill: items done, plus the in-flight file's byte share."""
+    done, total, _ = progress
+    if not total:
+        return 1.0
+    fraction = done / total
+    if bytes_state is not None:
+        _, received, expected = bytes_state
+        if received and expected:
+            fraction = (done + min(received / expected, 1.0)) / total
+    return min(fraction, 1.0)
+
+
+def run_line(progress: tuple[int, int, str], bytes_state: tuple | None) -> str:
+    """The one-line counter under the bar, byte counts included in-flight."""
+    done, total, name = progress
+    if bytes_state is not None:
+        in_flight, received, expected = bytes_state
+        if expected:
+            got = "…" if received is None else human_size(received)
+            current = min(done + 1, total)
+            return f"{current} / {total} — {in_flight} ({got} / {human_size(expected)})"
+    return f"{done} / {total} — {name}" if name else f"{done} / {total}"
+
+
+def summary_line(summary: Summary) -> str:
+    """The run's closing report, sized for a one-line label."""
+    counts = [
+        (summary.downloaded, "downloaded"),
+        (summary.already_there, "already there"),
+        (summary.videos_skipped, "videos skipped"),
+        (summary.missing, "gone from the chat"),
+        (summary.dated_by_file_time_only, "dated by file time only"),
+        (len(summary.errors), "problems"),
+    ]
+    parts = ", ".join(f"{count} {label}" for count, label in counts if count)
+    head = "Cancelled" if summary.cancelled else "Done"
+    line = f"{head}: {summary.total} items" + (f" — {parts}." if parts else ".")
+    return f"{line} Start resumes where it left off." if summary.cancelled else line
 
 
 def shorten_path(path: Path) -> str:
@@ -64,7 +147,13 @@ class ChronogramApp(ctk.CTk):
         self.selected_chat: Chat | None = None
         self.selected_destination: Path | None = None
         self.selected_since: datetime | None = None
-        self.selected_until: datetime | None = None  # inclusive day; task 10 adds the +1
+        # The inclusive day the user picked; _start_download adds the +1.
+        self.selected_until: datetime | None = None
+        self._control: DownloadControl | None = None
+        self._feed: RunFeed | None = None
+        self._download_active = False
+        self._rendered: tuple | None = None  # last (progress, bytes) painted
+        self._bar_indeterminate = False
 
         self.title("Chronogram TG")
         self._set_icon()
@@ -215,6 +304,18 @@ class ChronogramApp(ctk.CTk):
             row=row, column=0, columnspan=3, sticky="ew", padx=PAD, pady=(4, 0)
         )
         row += 1
+        # Nobody should fear that Start throws away a half-done rescue. The
+        # text is blanked (not removed) during a run so the window keeps its
+        # natural size.
+        self.resume_hint = ctk.CTkLabel(
+            self,
+            text=RESUME_HINT,
+            anchor="w",
+            text_color="gray",
+            font=ctk.CTkFont(size=11, slant="italic"),
+        )
+        self.resume_hint.grid(row=row, column=0, columnspan=3, sticky="ew", padx=PAD)
+        row += 1
 
         buttons = ctk.CTkFrame(self, fg_color="transparent")
         # No sticky: the frame centres itself in its row, resize or not.
@@ -225,9 +326,13 @@ class ChronogramApp(ctk.CTk):
             buttons, text="▶️ Start", state="disabled", command=self._start_download
         )
         self.start_button.grid(row=0, column=0)
-        self.pause_button = DimButton(buttons, text="⏸️ Pause", state="disabled")
+        self.pause_button = DimButton(
+            buttons, text=PAUSE_TEXT, state="disabled", command=self._toggle_pause
+        )
         self.pause_button.grid(row=0, column=1, padx=(8, 0))
-        self.cancel_button = DimButton(buttons, text="⏹️ Cancel", state="disabled")
+        self.cancel_button = DimButton(
+            buttons, text="⏹️ Cancel", state="disabled", command=self._cancel_download
+        )
         self.cancel_button.grid(row=0, column=2, padx=(8, 0))
 
     # ── session startup (task 7) ────────────────────────────────────
@@ -341,9 +446,143 @@ class ChronogramApp(ctk.CTk):
             save_settings(settings)
         self._refresh_start()
 
+    # ── the download itself (task 10) ───────────────────────────────
+
     def _start_download(self) -> None:
-        # Task 10 replaces this with the real download wiring.
-        self.progress_label.configure(text="Downloading is not wired up yet — next task.")
+        since = until_exclusive = None
+        if self.scope_value.get() == "range":
+            since = self.selected_since
+            if self.selected_until is not None:
+                until_exclusive = self.selected_until + timedelta(days=1)
+
+        self._control = DownloadControl()
+        self._feed = RunFeed()
+        self._rendered = None
+        self._set_running(True)
+        self._bar_scanning()
+        self.show_progress_bar()
+        self.progress_label.configure(text="Starting…")
+
+        future = self.bridge.submit(
+            download_chat(
+                self.session,
+                self.selected_chat.id,
+                self.selected_destination,
+                load_settings().filename_template,
+                since=since,
+                until_exclusive=until_exclusive,
+                include_videos=bool(self.videos_checkbox.get()),
+                control=self._control,
+                on_progress=self._feed.on_progress,
+                on_status=self._feed.on_status,
+                on_bytes=self._feed.on_bytes,
+            )
+        )
+        poll_future(self, future, self._download_finished, self._download_failed)
+        self.after(FEED_POLL_MS, self._poll_feed)
+
+    def _set_running(self, running: bool) -> None:
+        """While a run is on, the form sleeps and Pause/Cancel wake up."""
+        form_state = "disabled" if running else "normal"
+        for widget in (
+            self.chat_button,
+            self.whole_chat_radio,
+            self.range_radio,
+            self.range_button,
+            self.destination_button,
+        ):
+            widget.configure(state=form_state)
+        if self.ffmpeg_available:
+            self.videos_checkbox.configure(state=form_state)
+        run_state = "normal" if running else "disabled"
+        self.pause_button.configure(state=run_state, text=PAUSE_TEXT)
+        self.cancel_button.configure(state=run_state)
+        self.resume_hint.configure(text="" if running else RESUME_HINT)
+        if running:
+            self.start_button.configure(state="disabled")
+        else:
+            self._refresh_start()
+        self._download_active = running
+
+    def _bar_scanning(self) -> None:
+        """While the scan runs there is no total yet: sweep, do not sit at 0."""
+        self._bar_indeterminate = True
+        self.progress_bar.configure(mode="indeterminate")
+        self.progress_bar.start()
+
+    def _bar_tracking(self) -> None:
+        """Back to a plain 0..1 bar; called once real progress exists."""
+        if self._bar_indeterminate:
+            self._bar_indeterminate = False
+            self.progress_bar.stop()
+            self.progress_bar.configure(mode="determinate")
+            self.progress_bar.set(0)
+
+    def _poll_feed(self) -> None:
+        if not self._download_active:
+            return
+        progress, bytes_state, statuses = self._feed.drain()
+        # While paused nothing new should paint over "Paused." - at most one
+        # already-received chunk trickles in after the click.
+        paused = self._control.paused
+        if progress is not None and not paused:
+            self._bar_tracking()
+            self.progress_bar.set(run_fraction(progress, bytes_state))
+        snapshot = (progress, bytes_state)
+        if statuses:
+            # A status line (flood wait, scan report) holds the label until
+            # something newer than what arrived alongside it comes in.
+            self.progress_label.configure(text=statuses[-1])
+            self._rendered = snapshot
+        elif not paused and progress is not None and snapshot != self._rendered:
+            self._rendered = snapshot
+            self.progress_label.configure(text=run_line(progress, bytes_state))
+        self.after(FEED_POLL_MS, self._poll_feed)
+
+    def _toggle_pause(self) -> None:
+        # The pause gate sits between chunks, so even a gigabyte video
+        # holds almost immediately.
+        if self._control.paused:
+            self._control.resume()
+            self.pause_button.configure(text=PAUSE_TEXT)
+            self._rendered = None  # repaint the counter as soon as bytes flow
+        else:
+            self._control.pause()
+            self.pause_button.configure(text=RESUME_TEXT)
+            self.progress_label.configure(text="Paused.")
+
+    def _cancel_download(self) -> None:
+        self._control.cancel()
+        self.pause_button.configure(state="disabled")
+        self.cancel_button.configure(state="disabled")
+        self.progress_label.configure(text="Cancelling…")
+
+    def _download_finished(self, summary: Summary) -> None:
+        self._set_running(False)
+        self._bar_tracking()  # a run can end while the bar still sweeps
+        self.hide_progress_bar()
+        self.progress_bar.set(0)
+        self.progress_label.configure(text=summary_line(summary))
+        if summary.errors:
+            listed = summary.errors[:MAX_LISTED_PROBLEMS]
+            if len(summary.errors) > len(listed):
+                listed.append(f"…and {len(summary.errors) - len(listed)} more")
+            messagebox.showwarning(
+                "Chronogram TG",
+                "Some items had problems (the rest of the run was unaffected):\n\n"
+                + "\n".join(listed),
+            )
+
+    def _download_failed(self, error: Exception) -> None:
+        # Session-level trouble (expired export, lost login): the run is
+        # over, but the window stays usable so Start can try again.
+        self._set_running(False)
+        self._bar_tracking()
+        self.hide_progress_bar()
+        self.progress_bar.set(0)
+        self.progress_label.configure(text="The download stopped.")
+        prefix = "" if isinstance(error, TelegramError) else f"{type(error).__name__}: "
+        messagebox.showerror("Chronogram TG", f"{prefix}{error}")
 
     # ── progress bar visibility ─────────────────────────────────────
 
@@ -362,6 +601,10 @@ class ChronogramApp(ctk.CTk):
     # ── shutdown ────────────────────────────────────────────────────
 
     def _close(self) -> None:
+        if self._download_active and self._control is not None:
+            # The window dies now; asking the loop to stop keeps the
+            # session teardown in launch() from fighting a live download.
+            self._control.cancel()
         self.destroy()
 
 

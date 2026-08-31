@@ -168,10 +168,10 @@ def stream_of(data, chunk_size=1000):
     return open_stream
 
 
-def append_download(path, expected, open_stream, on_bytes=None):
+def append_download(path, expected, open_stream, on_bytes=None, gate=None):
     from chronogram_tg.tg import _append_download
 
-    return asyncio.run(_append_download(path, expected, open_stream, on_bytes))
+    return asyncio.run(_append_download(path, expected, open_stream, on_bytes, gate))
 
 
 def test_a_fresh_download_writes_the_whole_file(tmp_path):
@@ -214,3 +214,24 @@ def test_a_download_that_falls_short_is_deleted_and_reported(tmp_path):
         append_download(path, len(data) + 5000, stream_of(data))
 
     assert not path.exists()
+
+
+def test_the_gate_is_awaited_between_chunks_and_may_abandon_the_file(tmp_path):
+    # A cancel mid-file raises through the gate; the partial written so far
+    # must survive for the next run to resume.
+    data = bytes(range(256)) * 40
+    path = tmp_path / "clip.part.mp4"
+    chunks_seen = []
+
+    class AbandonNow(Exception):
+        pass
+
+    async def gate():
+        chunks_seen.append(1)
+        if len(chunks_seen) == 3:
+            raise AbandonNow
+
+    with pytest.raises(AbandonNow):
+        append_download(path, len(data), stream_of(data), gate=gate)
+
+    assert path.read_bytes() == data[:3000]

@@ -3,9 +3,9 @@
 **Audience:** the implementing agent (Claude Opus 5).
 **Read first:** [AGENTS.md](AGENTS.md) and [docs/DECISIONS.md](docs/DECISIONS.md).
 
-**Progress:** tasks 1–9 implemented; tasks 8 (chat picker) and 9 (scope and
-destination) await the owner's live check. Task 2 confirmed live on
-2026-08-23;
+**Progress:** tasks 1–10 implemented; tasks 8 and 9 were confirmed live by
+the owner on 2026-08-31; task 10 (download wiring) awaits the owner's live
+check on the throwaway chat. Task 2 confirmed live on 2026-08-23;
 task 5 exercised live by the owner on a 161-item/6.5 GB test chat through
 2026-08-24 (downloads, cancel, per-file and in-file resume, flood waits) —
 the Google Photos date spot-check folds into task 12's acceptance. ffmpeg
@@ -319,13 +319,20 @@ all Telegram work; GUI thread communicates via
 - **Files:** `gui/app.py`.
 - **Details:** Start launches the download through the async bridge;
   progress callbacks update bar + `n / total` counter (e.g. `347 / 1,520`)
-  via `after()`. Pause toggles to Resume; Cancel stops after the current
-  item and re-enables the form. FloodWait shows a status line ("Telegram
-  asked to wait 42 s — resuming automatically"). Errors on individual items
-  are counted and listed at the end, not fatal. Inputs are disabled while
-  running. The progress bar is hidden while no transfer runs — use the
-  existing show/hide_progress_bar helpers: show on Start, keep during
-  pause, hide on cancel and on completion (owner request, 2026-08-26).
+  via `after()`. Pause toggles to Resume; Cancel re-enables the form. Both
+  land *between chunks of the file in flight*, not between items — the
+  owner's live check (2026-09-01) showed a between-items pause silently
+  ignoring a 1.2 GB video; the partial file is kept and resumes later.
+  FloodWait shows a status line ("Telegram asked to wait 42 s — resuming
+  automatically"). Errors on individual items are counted and listed at
+  the end, not fatal. Inputs are disabled while running. The progress bar
+  is hidden while no transfer runs — use the existing
+  show/hide_progress_bar helpers: show on Start, keep during pause, hide
+  on cancel and on completion (owner request, 2026-08-26). While the scan
+  runs the bar sweeps in indeterminate mode, switching to determinate at
+  the first progress tick (owner request, 2026-09-01). An italic hint
+  under the status line says Start continues a cut-short download, so
+  nobody fears it restarts from scratch (owner request, 2026-09-01).
 - **Done when:** *user verifies on the throwaway chat:* full GUI run
   matches the Task 5 CLI results; pause/resume and cancel behave; UI stays
   responsive throughout; relaunching resumes.

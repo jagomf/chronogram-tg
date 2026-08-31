@@ -1,4 +1,5 @@
 import asyncio
+import threading
 from contextlib import asynccontextmanager
 from datetime import UTC, datetime, timedelta
 
@@ -44,7 +45,7 @@ class FakeSource:
     async def takeout_downloads(self):
         yield self
 
-    async def download(self, chat_id, message_id, path, on_bytes=None):
+    async def download(self, chat_id, message_id, path, on_bytes=None, gate=None):
         self.download_calls.append(message_id)
         if message_id in self.flood_pending:
             self.flood_pending.discard(message_id)
@@ -54,10 +55,16 @@ class FakeSource:
         if message_id in self.broken:
             path.write_bytes(b"half of a download")
             raise OSError("connection reset")
+        # Two chunks with the gate between them, like _append_download does.
+        half = len(MINIMAL_JPEG) // 2
+        path.write_bytes(MINIMAL_JPEG[:half])
         if on_bytes is not None:
-            on_bytes(len(MINIMAL_JPEG) // 2, len(MINIMAL_JPEG))
-            on_bytes(len(MINIMAL_JPEG), len(MINIMAL_JPEG))
+            on_bytes(half, len(MINIMAL_JPEG))
+        if gate is not None:
+            await gate()
         path.write_bytes(MINIMAL_JPEG)
+        if on_bytes is not None:
+            on_bytes(len(MINIMAL_JPEG), len(MINIMAL_JPEG))
         return True
 
 
@@ -156,6 +163,44 @@ def test_cancelling_stops_between_items_and_reports_it(tmp_path):
     assert summary.downloaded == 1
 
 
+def test_cancelling_mid_file_stops_at_once_and_keeps_the_partial(tmp_path):
+    source = FakeSource([record(1), record(2, seconds_later=1)])
+    control = DownloadControl()
+
+    summary = run(
+        source,
+        tmp_path,
+        control=control,
+        on_bytes=lambda name, received, expected: control.cancel(),
+    )
+
+    assert summary.cancelled is True
+    assert (summary.downloaded, summary.errors) == (0, [])
+    assert source.download_calls == [1]
+    partial = tmp_path / "IMG_20240815_143022_000.part.jpg"
+    assert partial.read_bytes() == MINIMAL_JPEG[: len(MINIMAL_JPEG) // 2]
+    assert not (tmp_path / "IMG_20240815_143022_000.jpg").exists()
+
+
+def test_pausing_mid_file_holds_the_stream_until_resumed(tmp_path):
+    source = FakeSource([record(1)])
+    control = DownloadControl()
+    half = len(MINIMAL_JPEG) // 2
+    events = []
+
+    def pause_at_half(name, received, expected):
+        events.append(received)
+        if received == half:
+            control.pause()
+            threading.Timer(0.05, lambda: (events.append("resumed"), control.resume())).start()
+
+    summary = run(source, tmp_path, control=control, on_bytes=pause_at_half)
+
+    assert summary.downloaded == 1
+    # The second chunk only flowed after the resume: the pause held mid-file.
+    assert events == [half, "resumed", len(MINIMAL_JPEG)]
+
+
 def test_a_video_that_ffmpeg_rejects_is_kept_with_its_file_time(tmp_path, monkeypatch):
     def refuse(path, moment):
         raise MetadataError("ffmpeg could not write the date")
@@ -200,7 +245,7 @@ def test_session_level_trouble_stops_the_run_instead_of_repeating_per_file(tmp_p
     from chronogram_tg.tg import TelegramError
 
     class ExpiredSource(FakeSource):
-        async def download(self, chat_id, message_id, path, on_bytes=None):
+        async def download(self, chat_id, message_id, path, on_bytes=None, gate=None):
             raise TelegramError("The Telegram export session had expired.")
 
     source = ExpiredSource([record(1), record(2, seconds_later=1)])

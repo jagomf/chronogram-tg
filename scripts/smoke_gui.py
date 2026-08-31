@@ -208,6 +208,90 @@ SCENARIOS = {
         root.destroy()
         bridge.stop()
     """,
+    "download_run": """
+        from pathlib import Path
+        from chronogram_tg.config import Credentials
+        from chronogram_tg.downloader import DownloadControl, Summary
+        from chronogram_tg.gui import app as app_module
+        from chronogram_tg.gui.app import PAUSE_TEXT, RESUME_TEXT, RunFeed
+        from chronogram_tg.tg import Chat
+
+        app_module.detect_ffmpeg = lambda: "/fake/ffmpeg"
+        application = app_module.ChronogramApp(Credentials(1, "x"), bridge=None)
+        for _ in range(10):
+            application.update()
+
+        # Arm the window as if a chat and a folder had been picked, then
+        # drive the run state machine directly - the downloader itself is
+        # unit-tested; this checks the wiring around it.
+        application.selected_chat = Chat(id=1, title="Mum", kind="person")
+        application.selected_destination = Path.home()
+        application._control = DownloadControl()
+        application._feed = RunFeed()
+        application._set_running(True)
+        application._bar_scanning()
+        application.show_progress_bar()
+        application.update()
+        assert application.progress_bar.cget("mode") == "indeterminate", "the bar sweeps at first"
+        for widget in (
+            application.chat_button, application.range_button,
+            application.destination_button, application.start_button,
+        ):
+            assert widget.cget("state") == "disabled", "the form must sleep while running"
+        assert application.videos_checkbox.cget("state") == "disabled"
+        assert application.pause_button.cget("state") == "normal"
+        assert application.cancel_button.cget("state") == "normal"
+        assert application.progress_bar.winfo_manager() == "pack", "the bar shows during a run"
+
+        application._feed.on_status("161 items to consider, 6.5 GB in total.")
+        application._poll_feed()
+        application.update()
+        assert "161 items" in application.progress_label.cget("text"), "statuses reach the label"
+        assert application.progress_bar.cget("mode") == "indeterminate", "no ticks: keep sweeping"
+
+        application._feed.on_progress(74, 161, "IMG_a.jpg")
+        application._feed.on_bytes("VID_b.mp4", 292, 1000)
+        application._poll_feed()
+        application.update()
+        assert application.progress_bar.cget("mode") == "determinate", "progress ends the sweep"
+        assert "VID_b.mp4" in application.progress_label.cget("text")
+        assert application.progress_bar.get() > 74 / 161, "in-flight bytes advance the bar"
+
+        assert application.resume_hint.cget("text") == "", "the hint rests during a run"
+
+        application._toggle_pause()
+        assert application._control.paused
+        assert application.pause_button.cget("text") == RESUME_TEXT
+        assert application.progress_label.cget("text") == "Paused."
+        application._feed.on_bytes("VID_b.mp4", 300, 1000)  # a chunk already in flight
+        application._poll_feed()
+        application.update()
+        assert application.progress_label.cget("text") == "Paused.", "no repaint while paused"
+        application._toggle_pause()
+        assert not application._control.paused
+        assert application.pause_button.cget("text") == PAUSE_TEXT
+        application._poll_feed()
+        application.update()
+        assert "VID_b.mp4" in application.progress_label.cget("text"), "resume repaints"
+
+        application._cancel_download()
+        application.update()
+        assert application._control.cancelled
+        assert application.pause_button.cget("state") == "disabled"
+        assert application.cancel_button.cget("state") == "disabled"
+        assert "Cancelling" in application.progress_label.cget("text")
+
+        application._download_finished(Summary(total=161, downloaded=40, cancelled=True))
+        application.update()
+        assert application.progress_bar.winfo_manager() == "", "the bar hides after a run"
+        assert not application._download_active
+        assert application.start_button.cget("state") == "normal", "Start re-arms after the run"
+        assert application.chat_button.cget("state") == "normal"
+        assert application.pause_button.cget("text") == PAUSE_TEXT
+        assert application.progress_label.cget("text").startswith("Cancelled: 161 items")
+        assert "Start continues it" in application.resume_hint.cget("text"), "the hint returns"
+        application.destroy()
+    """,
     "date_range": """
         from datetime import UTC, datetime
         import customtkinter as ctk
