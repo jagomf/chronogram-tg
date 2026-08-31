@@ -117,12 +117,14 @@ SCENARIOS = {
         pump(lambda: window.error_label.cget("text") != "", "empty-phone error")
         assert window.step == PHONE_STEP
 
-        window.entry.insert(0, "+34600112233")
+        window.entry.insert(0, "tel: +34 600-112.233")  # pasted with decoration
+        assert window.entry.get() == "+34600112233", "the phone field cleans itself"
         window._submit()
         pump(lambda: window.step == CODE_STEP, "advance to the code step")
 
-        window.entry.insert(0, "99999")  # wrong code: error, stays on code step
-        window._submit()
+        window.entry.insert(0, "x9y9z9 9-9!")  # the code field keeps digits only
+        assert window.entry.get() == "99999"
+        window._submit()  # wrong code: error, stays on code step
         pump(lambda: window.error_label.cget("text") != "", "wrong-code error")
         assert window.step == CODE_STEP
 

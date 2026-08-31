@@ -34,6 +34,22 @@ ENTRY_WIDTHS = {PHONE_STEP: 210, CODE_STEP: 110, PASSWORD_STEP: 240}
 ENTRY_JUSTIFY = {PHONE_STEP: "left", CODE_STEP: "center", PASSWORD_STEP: "left"}
 
 
+def sanitise(value: str, step: str) -> str:
+    """Keep only what the step's field can mean; passwords stay untouched.
+
+    Applied on every change (typing and pasting alike): a phone is digits
+    with one leading +, a login code is digits. Pasting "+34 600 11 22 33"
+    therefore lands as "+34600112233" instead of being rejected.
+    """
+    if step == CODE_STEP:
+        return "".join(c for c in value if c.isdigit())
+    if step == PHONE_STEP:
+        kept = "".join(c for c in value if c.isdigit() or c == "+")
+        head = "+" if kept.startswith("+") else ""
+        return head + kept.replace("+", "")
+    return value
+
+
 class LoginWindow(ctk.CTkToplevel):
     def __init__(self, parent, bridge: TelegramBridge, session, on_success):
         super().__init__(parent)
@@ -60,8 +76,11 @@ class LoginWindow(ctk.CTkToplevel):
         self.prompt = ctk.CTkLabel(self, text=PROMPTS[self.step], anchor="w", justify="left")
         self.prompt.grid(row=2, column=0, sticky="w", padx=PAD, pady=(PAD, 4))
 
+        self.entry_value = ctk.StringVar()
+        self.entry_value.trace_add("write", lambda *_args: self._sanitise_entry())
         self.entry = ctk.CTkEntry(
             self,
+            textvariable=self.entry_value,
             width=ENTRY_WIDTHS[self.step],
             height=38,
             font=ctk.CTkFont(size=17),
@@ -86,6 +105,14 @@ class LoginWindow(ctk.CTkToplevel):
         centre_on_screen(self)
         self.lift()
         self.after(100, self.entry.focus_set)
+
+    def _sanitise_entry(self) -> None:
+        # Setting the cleaned value fires the trace once more; that second
+        # pass changes nothing, so the recursion ends there.
+        value = self.entry_value.get()
+        cleaned = sanitise(value, self.step)
+        if cleaned != value:
+            self.entry_value.set(cleaned)
 
     # ── the step machine ────────────────────────────────────────────
 

@@ -276,7 +276,10 @@ all Telegram work; GUI thread communicates via
 - **Details:** on startup, `is_authorized()`; if false, show login window
   (phone → code → optional 2FA password, with error feedback for wrong
   code/password) before the main window. Reuse the step methods from
-  Task 2 — no Telethon calls directly in GUI code.
+  Task 2 — no Telethon calls directly in GUI code. The phone and code
+  fields sanitise themselves on every change — digits with one leading +
+  for the phone, digits for the code, pasting included; passwords stay
+  untouched (owner request, 2026-09-01).
 - **Done when:** *user verifies:* after logging out (delete session file
   manually for now), app shows login and completes it; next launch skips
   straight to the main window.
