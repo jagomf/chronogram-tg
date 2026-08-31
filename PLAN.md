@@ -3,11 +3,14 @@
 **Audience:** the implementing agent (Claude Opus 5).
 **Read first:** [AGENTS.md](AGENTS.md) and [docs/DECISIONS.md](docs/DECISIONS.md).
 
-**Progress:** tasks 1–11 implemented; tasks 8 and 9 were confirmed live by
+**Progress:** tasks 1–12 implemented; tasks 8 and 9 were confirmed live by
 the owner on 2026-08-31, and tasks 10 and 11 on 2026-09-01 (pause, cancel,
 resume and the full GUI run on the throwaway chat; presets, invalid
-patterns and logout→login in settings). Next: task 12. Task 2 confirmed
-live on 2026-08-23;
+patterns and logout→login in settings). Task 12's hardening pass and
+clean-machine walkthrough are done (2026-09-01); what remains is the
+owner's final acceptance: the real family chat, the Google Photos date
+spot-check and the copy onto the phone. Task 2 confirmed live on
+2026-08-23;
 task 5 exercised live by the owner on a 161-item/6.5 GB test chat through
 2026-08-24 (downloads, cancel, per-file and in-file resume, flood waits) —
 the Google Photos date spot-check folds into task 12's acceptance. ffmpeg

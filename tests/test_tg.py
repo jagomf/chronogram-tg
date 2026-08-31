@@ -233,6 +233,27 @@ def test_a_download_that_falls_short_is_deleted_and_reported(tmp_path):
     assert not path.exists()
 
 
+def test_a_revoked_session_surfaces_as_a_friendly_error(tmp_path):
+    # Signed out from another device mid-run: the raw Telethon error would
+    # be one cryptic line per remaining item; this stops the run with one
+    # message the interface can route back to the login window.
+    from telethon.errors import UnauthorizedError
+
+    from chronogram_tg.tg import MediaDownloads, SessionRevokedError, TelegramError
+
+    class DeadClient:
+        async def get_messages(self, chat_id, ids):
+            raise UnauthorizedError(request=None, message="AUTH_KEY_UNREGISTERED")
+
+    downloads = MediaDownloads(DeadClient(), takeout_proxy=None)
+
+    with pytest.raises(SessionRevokedError) as caught:
+        asyncio.run(downloads.download(1, 2, tmp_path / "x.jpg"))
+
+    assert isinstance(caught.value, TelegramError), "callers catch it as a TelegramError"
+    assert "Log in again" in str(caught.value)
+
+
 def test_the_gate_is_awaited_between_chunks_and_may_abandon_the_file(tmp_path):
     # A cancel mid-file raises through the gate; the partial written so far
     # must survive for the next run to resume.

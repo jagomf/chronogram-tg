@@ -8,7 +8,13 @@ import pytest
 from telethon.errors import FloodWaitError
 
 from chronogram_tg import downloader
-from chronogram_tg.downloader import DownloadControl, download_chat, plan_names
+from chronogram_tg.downloader import (
+    MAX_CONSECUTIVE_ERRORS,
+    DownloadControl,
+    DownloadError,
+    download_chat,
+    plan_names,
+)
 from chronogram_tg.metadata import MetadataError
 from chronogram_tg.naming import TELEGRAM_TEMPLATE
 from chronogram_tg.tg import IMAGE_DOCUMENT_KIND, PHOTO_KIND, VIDEO_KIND, MediaRecord
@@ -128,6 +134,50 @@ def test_one_broken_item_does_not_sink_the_rest(tmp_path):
     assert len(summary.errors) == 1 and "connection reset" in summary.errors[0]
     # The half-downloaded temporary survives so the next run can resume it.
     assert (tmp_path / "IMG_20240815_143023_000.part.jpg").read_bytes() == b"half of a download"
+
+
+def test_an_unwritable_destination_is_one_clear_error_not_hundreds(tmp_path):
+    blocker = tmp_path / "not-a-folder.txt"
+    blocker.write_bytes(b"a file where the destination path needs a folder")
+    source = FakeSource([record(1)])
+
+    with pytest.raises(DownloadError, match="Cannot write into the destination"):
+        run(source, blocker / "photos")
+
+    assert source.download_calls == []
+
+
+def test_a_run_where_everything_fails_stops_after_a_streak(tmp_path):
+    ids = range(1, MAX_CONSECUTIVE_ERRORS + 3)
+    source = FakeSource([record(n, seconds_later=n) for n in ids], broken=set(ids))
+
+    with pytest.raises(DownloadError, match="in a row failed"):
+        run(source, tmp_path)
+
+    assert len(source.download_calls) == MAX_CONSECUTIVE_ERRORS
+
+
+def test_scattered_failures_do_not_trip_the_streak(tmp_path):
+    # Four broken, one good, one broken: never five in a row.
+    source = FakeSource([record(n, seconds_later=n) for n in range(1, 7)], broken={1, 2, 3, 4, 6})
+
+    summary = run(source, tmp_path)
+
+    assert summary.downloaded == 1
+    assert len(summary.errors) == 5
+
+
+def test_a_leftover_temporary_next_to_its_finished_file_is_swept(tmp_path):
+    # A crash between the stamp and the rename leaves both files behind.
+    (tmp_path / "IMG_20240815_143022_000.jpg").write_bytes(b"finished earlier")
+    stray = tmp_path / "IMG_20240815_143022_000.part.jpg"
+    stray.write_bytes(b"crash relic")
+    source = FakeSource([record(1)])
+
+    summary = run(source, tmp_path)
+
+    assert summary.already_there == 1
+    assert not stray.exists()
 
 
 def test_a_message_deleted_after_the_scan_is_only_counted(tmp_path):

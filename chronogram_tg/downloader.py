@@ -52,6 +52,11 @@ ITEM_PAUSE_SECONDS = 1.0
 PAUSE_POLL_SECONDS = 0.2
 FLOOD_RETRY_LIMIT = 5
 
+# One broken item must not sink the rescue, but a run where *everything*
+# fails (network gone, disk full) should stop instead of grinding through
+# hundreds of identical errors. Any success resets the count.
+MAX_CONSECUTIVE_ERRORS = 5
+
 ProgressCallback = Callable[[int, int, str], None]  # items dealt with, total, latest name
 StatusCallback = Callable[[str], None]
 # filename, bytes received (None while still unknown, e.g. before a resume
@@ -78,6 +83,13 @@ class Summary:
     dated_by_file_time_only: int = 0
     errors: list[str] = field(default_factory=list)
     cancelled: bool = False
+
+
+class DownloadError(Exception):
+    """The run cannot continue (bad destination, everything failing).
+
+    The message is written for the user and can be shown as-is.
+    """
 
 
 class _RunCancelled(Exception):
@@ -224,7 +236,18 @@ async def download_chat(
     say: StatusCallback = on_status or (lambda message: None)
     tick: ProgressCallback = on_progress or (lambda done, total, name: None)
 
-    destination.mkdir(parents=True, exist_ok=True)
+    # Fail on an unusable destination now, with one clear message, rather
+    # than once per item later. The probe also catches read-only folders,
+    # which mkdir alone would wave through.
+    try:
+        destination.mkdir(parents=True, exist_ok=True)
+        probe = destination / ".chronogram-write-check"
+        probe.touch()
+        probe.unlink()
+    except OSError as error:
+        raise DownloadError(
+            f"Cannot write into the destination folder {destination} ({error})."
+        ) from error
     say("Scanning the chat for photos and videos...")
     records = await source.scan_media(chat_id, since, until_exclusive)
     plan = plan_names(records, template)
@@ -257,6 +280,7 @@ async def download_chat(
             raise _RunCancelled
 
     dealt_with = 0
+    consecutive_errors = 0
     tick(0, summary.total, "")  # the baseline, so the counter is visible at once
     async with source.takeout_downloads() as downloads:
         for item in plan:
@@ -267,6 +291,9 @@ async def download_chat(
             target = destination / item.filename
 
             if target.exists():
+                # A leftover temporary next to a finished file is a crash
+                # relic from between the stamp and the rename; sweep it up.
+                _temporary_path(destination, item.filename).unlink(missing_ok=True)
                 summary.already_there += 1
                 tick(dealt_with, summary.total, item.filename)
                 continue
@@ -293,6 +320,7 @@ async def download_chat(
                 _stamp(item, temporary, summary)
                 temporary.replace(target)
                 summary.downloaded += 1
+                consecutive_errors = 0
             except _RunCancelled:
                 # Cancelled mid-file: the partial stays and resumes later.
                 summary.cancelled = True
@@ -305,6 +333,14 @@ async def download_chat(
             except Exception as error:  # one broken item must not sink the rescue
                 # The partial file stays too: the retry resumes it.
                 summary.errors.append(f"{item.filename}: {error}")
+                consecutive_errors += 1
+                if consecutive_errors >= MAX_CONSECUTIVE_ERRORS:
+                    raise DownloadError(
+                        f"{MAX_CONSECUTIVE_ERRORS} items in a row failed; the "
+                        f"last problem was: {error}. Check the connection and "
+                        f"the destination folder, then run again - it resumes "
+                        f"where it left off."
+                    ) from error
 
             tick(dealt_with, summary.total, item.filename)
             await asyncio.sleep(ITEM_PAUSE_SECONDS)

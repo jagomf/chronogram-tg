@@ -292,7 +292,42 @@ SCENARIOS = {
         assert application.pause_button.cget("text") == PAUSE_TEXT
         assert application.progress_label.cget("text").startswith("Cancelled: 161 items")
         assert "Start continues it" in application.resume_hint.cget("text"), "the hint returns"
+
+        # A session revoked mid-run routes back to the login window (D8).
+        import time
+        from chronogram_tg.gui.bridge import TelegramBridge
+        from chronogram_tg.gui.login import LoginWindow
+        from chronogram_tg.tg import REVOKED_MESSAGE, SessionRevokedError
+
+        class FakeSession:
+            async def disconnect(self):
+                pass
+
+            async def connect(self):
+                pass
+
+        warned = []
+        app_module.messagebox.showwarning = lambda *args, **kwargs: warned.append(args)
+        bridge = TelegramBridge()
+        bridge.start()
+        application.bridge = bridge
+        application.session = FakeSession()
+        application._set_running(True)
+        application._download_failed(SessionRevokedError(REVOKED_MESSAGE))
+        assert warned, "the user is told what happened"
+        assert application.selected_chat is None, "the chat selection is account-bound"
+        assert application.chat_label.cget("text") == "No chat selected"
+        deadline = time.monotonic() + 5
+        while time.monotonic() < deadline:
+            application.update()
+            logins = [w for w in application.winfo_children() if isinstance(w, LoginWindow)]
+            if logins and application.wm_state() == "withdrawn":
+                break
+            time.sleep(0.01)
+        else:
+            raise AssertionError("timed out waiting for the login window")
         application.destroy()
+        bridge.stop()
     """,
     "settings": """
         import customtkinter as ctk

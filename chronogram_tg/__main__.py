@@ -17,7 +17,7 @@ from pathlib import Path
 
 from . import __version__
 from .config import LOG_FILE, ConfigError, Credentials, load_credentials, load_settings
-from .downloader import Summary, download_chat, human_size
+from .downloader import DownloadError, Summary, download_chat, human_size
 from .metadata import detect_ffmpeg
 from .tg import LoginError, TelegramError, TelegramSession
 
@@ -326,7 +326,7 @@ def main(argv: list[str] | None = None) -> int:
             asyncio.run(run_chats(credentials, arguments.limit))
         else:
             asyncio.run(run_download(credentials, arguments))
-    except TelegramError as error:
+    except (TelegramError, DownloadError) as error:
         print(f"\n{error}", file=sys.stderr)
         return 1
     except (KeyboardInterrupt, EOFError):

@@ -92,10 +92,16 @@ def _write_exif_dates(path: Path, moment: datetime) -> None:
     exif.setdefault("0th", {})[piexif.ImageIFD.DateTime] = stamp
     exif.setdefault("Exif", {})[piexif.ExifIFD.DateTimeOriginal] = stamp
     exif["Exif"][piexif.ExifIFD.DateTimeDigitized] = stamp
+    # Stamp into a sibling and swap atomically, like stamp_video does: a
+    # write that dies halfway (disk full) must never leave the downloaded
+    # file half-rewritten, because the caller keeps it on failure.
+    stamped = path.with_name(f"{path.stem}.stamping{path.suffix}")
     try:
-        piexif.insert(piexif.dump(exif), str(path))
+        piexif.insert(piexif.dump(exif), str(path), str(stamped))
     except (ValueError, struct.error, OSError) as error:
+        stamped.unlink(missing_ok=True)
         raise MetadataError(f"Could not write the date into {path.name}: {error}") from error
+    os.replace(stamped, path)
 
 
 def stamp_photo(path: Path, moment: datetime) -> Stamped:

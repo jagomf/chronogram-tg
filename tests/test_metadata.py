@@ -237,6 +237,27 @@ def test_a_file_ffmpeg_cannot_read_reports_the_problem_and_cleans_up(tmp_path):
     assert not list(tmp_path.glob("*.stamping.*"))
 
 
+def test_a_failed_stamp_leaves_the_photo_exactly_as_it_was(tmp_path, monkeypatch):
+    # Disk full halfway through the EXIF rewrite: the downloaded bytes must
+    # survive intact (the caller keeps the file and dates it by mtime only).
+    path = jpeg(tmp_path)
+    original = path.read_bytes()
+
+    def die_midway(exif_bytes, source, new_file=None):
+        if new_file is not None:
+            with open(new_file, "wb") as handle:
+                handle.write(b"half a rewrite")
+        raise OSError("No space left on device")
+
+    monkeypatch.setattr(piexif, "insert", die_midway)
+
+    with pytest.raises(MetadataError, match="No space left"):
+        stamp_photo(path, MOMENT)
+
+    assert path.read_bytes() == original
+    assert list(tmp_path.glob("*.stamping*")) == [], "the sibling temp is cleaned up"
+
+
 def test_stamping_one_unreadable_file_does_not_affect_the_next(tmp_path):
     # A shared empty-EXIF constant would leak the first file's tags here.
     first = tmp_path / "one.png"

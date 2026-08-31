@@ -13,8 +13,9 @@ itself saves to the gallery (`IMG_20240815_143022_123.jpg`). Copy them to
 the phone's Telegram gallery folders and Google Photos will back them up
 and sort them in their true chronological place.
 
-> **Project status:** the repository scaffolding and implementation plan are
-> ready; the application itself is being built following [PLAN.md](PLAN.md).
+> **Project status:** fully functional — the window app and the console
+> commands both work end to end. Double-clickable packaged executables are
+> the one remaining (optional) item in [PLAN.md](PLAN.md).
 
 ## How it works
 
@@ -143,11 +144,14 @@ find the file, you are in the wrong folder — `cd` into the project folder
   be asked again.
 - Pick the **chat**, the **scope** (whole chat or a date range), the
   **destination folder**, and whether to **include videos**.
-- Press **Start**. You can **pause/resume** or **cancel** at any time; the
-  progress bar shows `downloaded / total`.
+- Press **Start**. You can **pause/resume** or **cancel** at any time —
+  even in the middle of a large video; the progress bar and the counter
+  under it show how far along the run is.
 - Large chats are downloaded deliberately slowly to respect Telegram's
   limits. If Telegram asks the app to wait (flood control), it waits and
   continues automatically. Interrupted? Run again — it resumes.
+- The **⚙️ button** opens the settings: the filename pattern (presets and
+  a free template, with a live preview) and logging out of Telegram.
 
 ### Console commands
 

@@ -15,9 +15,9 @@ from tkinter import PhotoImage, filedialog, messagebox
 import customtkinter as ctk
 
 from ..config import DEFAULT_DOWNLOAD_DIR, Credentials, load_settings, save_settings
-from ..downloader import DownloadControl, Summary, download_chat, human_size
+from ..downloader import DownloadControl, DownloadError, Summary, download_chat, human_size
 from ..metadata import detect_ffmpeg
-from ..tg import Chat, TelegramError, TelegramSession
+from ..tg import Chat, SessionRevokedError, TelegramError, TelegramSession
 from .bridge import TelegramBridge, poll_future
 from .chat_picker import FALLBACK_EMOJI, KIND_EMOJI, ChatPicker, ellipsise
 from .date_range import DATE_FORMAT, DateRangeWindow
@@ -581,7 +581,14 @@ class ChronogramApp(ctk.CTk):
         self.hide_progress_bar()
         self.progress_bar.set(0)
         self.progress_label.configure(text="The download stopped.")
-        prefix = "" if isinstance(error, TelegramError) else f"{type(error).__name__}: "
+        if isinstance(error, SessionRevokedError):
+            # Signed out from another device: back to the login window,
+            # exactly like an in-app logout (D8).
+            messagebox.showwarning("Chronogram TG", str(error))
+            self._session_revoked()
+            return
+        friendly = isinstance(error, (TelegramError, DownloadError))
+        prefix = "" if friendly else f"{type(error).__name__}: "
         messagebox.showerror("Chronogram TG", f"{prefix}{error}")
 
     # ── settings and logout (task 11) ───────────────────────────────
@@ -599,9 +606,10 @@ class ChronogramApp(ctk.CTk):
         settings.filename_template = template
         save_settings(settings)
 
-    def _log_out(self) -> None:
-        # Back to the login window (D8). The selection is account-bound, so
-        # it resets; the destination and pattern are this machine's and stay.
+    def _reset_form_for_login(self) -> None:
+        # Back towards the login window (D8). The selection is account-bound,
+        # so it resets; the destination and pattern are this machine's, they
+        # stay.
         self.selected_chat = None
         self.chat_label.configure(text=CHAT_PLACEHOLDER, text_color=PLACEHOLDER_COLOR)
         for widget in (
@@ -615,9 +623,23 @@ class ChronogramApp(ctk.CTk):
         ):
             widget.configure(state="disabled")
         self.withdraw()
+
+    def _log_out(self) -> None:
+        self._reset_form_for_login()
         poll_future(
             self,
             self.bridge.submit(self.session.log_out()),
+            lambda _: self._reconnect_for_login(),
+            self._fatal,
+        )
+
+    def _session_revoked(self) -> None:
+        # No log_out call: Telegram already killed the session. Disconnect
+        # and reconnect so the login starts from a clean client.
+        self._reset_form_for_login()
+        poll_future(
+            self,
+            self.bridge.submit(self.session.disconnect()),
             lambda _: self._reconnect_for_login(),
             self._fatal,
         )

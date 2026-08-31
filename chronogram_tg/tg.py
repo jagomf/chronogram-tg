@@ -29,6 +29,7 @@ from telethon.errors import (
     SessionPasswordNeededError,
     TakeoutInitDelayError,
     TakeoutInvalidError,
+    UnauthorizedError,
 )
 from telethon.sessions import SQLiteSession
 from telethon.tl.types import (
@@ -129,6 +130,16 @@ class TelegramError(Exception):
 
 class LoginError(TelegramError):
     """The user can fix this by retrying the step (bad code, bad password)."""
+
+
+class SessionRevokedError(TelegramError):
+    """Telegram stopped accepting the session mid-flight (signed out remotely)."""
+
+
+REVOKED_MESSAGE = (
+    "Telegram no longer accepts this session - it was probably closed from "
+    "another device. Log in again to continue."
+)
 
 
 @dataclass(frozen=True)
@@ -256,6 +267,8 @@ class TelegramSession:
             return [describe_dialog(d) async for d in self.client.iter_dialogs(limit=limit)]
         except FloodWaitError as error:
             raise TelegramError(_flood_wait_message(error)) from error
+        except UnauthorizedError as error:
+            raise SessionRevokedError(REVOKED_MESSAGE) from error
 
     async def log_out(self) -> None:
         """End the session on Telegram's side and delete the local session file."""
@@ -290,6 +303,8 @@ class TelegramSession:
                         found[record.message_id] = record
         except FloodWaitError as error:
             raise TelegramError(_flood_wait_message(error)) from error
+        except UnauthorizedError as error:
+            raise SessionRevokedError(REVOKED_MESSAGE) from error
         except ValueError as error:
             raise TelegramError(
                 f"Chat {chat_id} was not found. Run the chats command and use "
@@ -453,10 +468,10 @@ class MediaDownloads:
         the regular client - only file transfers need takeout's blessing, and
         takeout sessions do not allow every request type.
         """
-        message = await self._client.get_messages(chat_id, ids=message_id)
-        if message is None or (message.photo is None and message.document is None):
-            return False
         try:
+            message = await self._client.get_messages(chat_id, ids=message_id)
+            if message is None or (message.photo is None and message.document is None):
+                return False
             document = message.document
             expected = getattr(message.file, "size", None) or 0
             if document is not None and expected:
@@ -478,6 +493,8 @@ class MediaDownloads:
                 "The Telegram export session had expired. It has been reset - "
                 "run the same command again to continue."
             ) from error
+        except UnauthorizedError as error:
+            raise SessionRevokedError(REVOKED_MESSAGE) from error
         return result is not None
 
 
