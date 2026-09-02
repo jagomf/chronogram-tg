@@ -52,8 +52,11 @@ system from the [releases page](https://github.com/jagomf/chronogram-tg/releases
 unzip it, and double-click **Chronogram TG**. The binaries are not signed
 (signing costs money), so the first launch needs one extra step:
 
-- **macOS:** right-click the app → **Open** → **Open** again. Only needed
-  once.
+- **macOS:** the first launch is blocked ("Apple could not verify…").
+  Click **Done** — *not* "Move to Trash" — then open **System Settings →
+  Privacy & Security**, scroll to the bottom and click **Open Anyway**
+  next to the message about Chronogram TG. Only needed once. (Terminal
+  alternative: `xattr -dr com.apple.quarantine "Chronogram TG.app"`.)
 - **Windows:** if SmartScreen appears, click **More info** → **Run anyway**.
 
 You still need the free Telegram API key from step 4 below — the app tells
