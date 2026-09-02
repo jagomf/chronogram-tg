@@ -40,6 +40,16 @@ def test_a_long_path_is_cut_from_the_front():
     assert len(shortened) == MAX_PATH_CHARS
 
 
+def test_a_deep_home_path_shortens_and_keeps_the_tail():
+    deep = Path.home() / "very" / "deep" / "folder" / "structure" / "for" / "the" / "rescue"
+
+    shown = shorten_path(deep)
+
+    assert len(shown) <= MAX_PATH_CHARS
+    assert shown.endswith("rescue")
+    assert shown.startswith("…")
+
+
 # ── RunFeed ──────────────────────────────────────────────────────────
 
 
