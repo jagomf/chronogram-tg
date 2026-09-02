@@ -134,6 +134,26 @@ def load_credentials(env_file: Path | str | None = None) -> Credentials:
     return Credentials(api_id=int(api_id_raw), api_hash=api_hash)
 
 
+def save_credentials(api_id: str, api_hash: str, path: Path | str | None = None) -> Credentials:
+    """Validate the two values and write them as the .env file.
+
+    This is what the first-run window calls, so the messages are written
+    for that dialog. Neither value is ever echoed back in an error.
+    """
+    api_id, api_hash = api_id.strip(), api_hash.strip()
+    if not api_id.isdigit():
+        raise ConfigError("The API ID is the number my.telegram.org shows - digits only.")
+    if len(api_hash) != 32 or not all(c in "0123456789abcdef" for c in api_hash.lower()):
+        raise ConfigError(
+            "That does not look like an api_hash: it is 32 characters, "
+            "only digits and the letters a-f."
+        )
+    env_path = ENV_FILE if path is None else Path(path)
+    env_path.parent.mkdir(parents=True, exist_ok=True)
+    env_path.write_text(f"{API_ID_KEY}={api_id}\n{API_HASH_KEY}={api_hash}\n", encoding="utf-8")
+    return Credentials(api_id=int(api_id), api_hash=api_hash)
+
+
 def load_settings(path: Path | str | None = None) -> Settings:
     """Read persisted settings, falling back to defaults.
 

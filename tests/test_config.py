@@ -109,6 +109,42 @@ def test_unknown_settings_keys_are_ignored(tmp_path):
     assert load_settings(path) == Settings(filename_template="{date}")
 
 
+# ── save_credentials (the first-run window's writer) ─────────────────
+
+GOOD_HASH = "0123456789abcdef0123456789abcdef"
+
+
+def test_saved_credentials_round_trip_through_the_env_file(tmp_path):
+    path = tmp_path / "deep" / ".env"
+
+    saved = config.save_credentials(" 1234567 ", f" {GOOD_HASH} ", path)
+
+    assert saved == Credentials(api_id=1234567, api_hash=GOOD_HASH)
+    assert load_credentials(path) == saved
+    assert path.read_text(encoding="utf-8") == (
+        f"TELEGRAM_API_ID=1234567\nTELEGRAM_API_HASH={GOOD_HASH}\n"
+    )
+
+
+def test_a_non_numeric_api_id_is_refused(tmp_path):
+    with pytest.raises(ConfigError, match="digits only"):
+        config.save_credentials("12a34", GOOD_HASH, tmp_path / ".env")
+
+    assert not (tmp_path / ".env").exists()
+
+
+@pytest.mark.parametrize("api_hash", ["short", GOOD_HASH + "ff", GOOD_HASH[:-1] + "z", ""])
+def test_a_malformed_api_hash_is_refused(tmp_path, api_hash):
+    with pytest.raises(ConfigError, match="does not look like an api_hash"):
+        config.save_credentials("1234567", api_hash, tmp_path / ".env")
+
+
+def test_the_hash_check_accepts_uppercase_hex(tmp_path):
+    saved = config.save_credentials("7", GOOD_HASH.upper(), tmp_path / ".env")
+
+    assert saved.api_hash == GOOD_HASH.upper()
+
+
 # ── user_data_dir (where a packaged app keeps its files) ─────────────
 
 

@@ -330,6 +330,58 @@ SCENARIOS = {
         application.destroy()
         bridge.stop()
     """,
+    "credentials": """
+        import tempfile
+        from pathlib import Path
+        from chronogram_tg import config as config_module
+        from chronogram_tg.gui.credentials import CredentialsWindow
+
+        workdir = Path(tempfile.mkdtemp())
+        config_module.ENV_FILE = workdir / ".env"  # never touch the real one
+
+        window = CredentialsWindow(initial_error="Old .env was broken.")
+        window.update()
+        assert window.result is None, "cancelling would leave None"
+        assert "Old .env was broken." in window.error_label.cget("text")
+        assert window.accept_button.cget("state") == "disabled", "empty form: Accept sleeps"
+
+        window.id_value.set("12 34a567")  # the ID field keeps digits only
+        window.update()
+        assert window.id_value.get() == "1234567"
+        assert window.accept_button.cget("state") == "disabled", "no hash yet"
+
+        window.hash_value.set("not-a-real-hash")
+        window.update()
+        assert window.accept_button.cget("state") == "normal"
+        window._accept()
+        window.update()
+        assert "does not look like an api_hash" in window.error_label.cget("text")
+        assert window.result is None and window.winfo_exists()
+
+        window.hash_value.set(" 0123456789abcdef0123456789abcdef ")
+        window._accept()
+        assert window.result is not None
+        assert (window.result.api_id, window.result.api_hash) == (
+            1234567, "0123456789abcdef0123456789abcdef",
+        )
+        assert "TELEGRAM_API_ID=1234567" in (workdir / ".env").read_text()
+        try:
+            alive = window.winfo_exists()  # a destroyed *root* raises instead
+        except Exception:
+            alive = False
+        assert not alive, "accepting closes the window"
+
+        # The app window must still come up after this root died (the real
+        # flow is setup window, then main window, in one process).
+        from chronogram_tg.config import Credentials
+        from chronogram_tg.gui import app as app_module
+        app_module.detect_ffmpeg = lambda: "/fake/ffmpeg"
+        application = app_module.ChronogramApp(Credentials(1, "x"), bridge=None)
+        for _ in range(10):
+            application.update()
+        assert application.start_button.cget("state") == "disabled"
+        application.destroy()
+    """,
     "about": """
         import customtkinter as ctk
         from chronogram_tg import __version__

@@ -68,9 +68,16 @@ class LoginWindow(ctk.CTkToplevel):
         )
         ctk.CTkLabel(
             self,
-            text="This is asked once; the session is remembered afterwards.",
+            # Why log in when an API key was already given: the key named
+            # the app; this signs in the account the photos come from.
+            text=(
+                "The API key identified the app - now sign in to the account\n"
+                "whose chats will be rescued. This is asked once; the\n"
+                "session is remembered afterwards."
+            ),
             text_color="gray",
             anchor="w",
+            justify="left",
         ).grid(row=1, column=0, sticky="w", padx=PAD)
 
         self.prompt = ctk.CTkLabel(self, text=PROMPTS[self.step], anchor="w", justify="left")

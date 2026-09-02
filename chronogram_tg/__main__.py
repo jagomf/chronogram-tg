@@ -291,9 +291,10 @@ def configure_logging() -> None:
     telethon_logger.propagate = False
 
 
-def run_gui(credentials: Credentials) -> int:
+def run_gui(credentials: Credentials | None, config_error: str | None = None) -> int:
     try:
         from .gui.app import launch
+        from .gui.credentials import ask_for_credentials
     except ImportError as error:
         print(
             f"The graphical interface could not start ({error}).\n"
@@ -304,27 +305,12 @@ def run_gui(credentials: Credentials) -> int:
             file=sys.stderr,
         )
         return 1
+    if credentials is None:
+        credentials = ask_for_credentials(config_error)
+        if credentials is None:
+            return 1  # setup cancelled; nothing to run without a key
     launch(credentials)
     return 0
-
-
-def show_startup_error(message: str) -> None:
-    """A dialog for configuration trouble when there is no console.
-
-    A double-clicked packaged app has nowhere to print: on Windows a
-    windowed executable has no stdout at all, so without this the app
-    would just silently not open.
-    """
-    try:
-        import tkinter
-        from tkinter import messagebox
-
-        root = tkinter.Tk()
-        root.withdraw()
-        messagebox.showerror("Chronogram TG", message)
-        root.destroy()
-    except Exception:
-        pass  # no Tk either: the console print below is all there is
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -335,7 +321,10 @@ def main(argv: list[str] | None = None) -> int:
         credentials = load_credentials()
     except ConfigError as error:
         if arguments.command is None:
-            show_startup_error(str(error))
+            # The window can fix this itself: it asks for the API key and
+            # writes the .env file (a double-clicked app has no console to
+            # read the message from anyway).
+            return run_gui(None, config_error=str(error))
         print(error, file=sys.stderr)
         return 1
 

@@ -62,9 +62,9 @@ unzip it, and double-click **Chronogram TG**. The binaries are not signed
   `xattr -dr com.apple.quarantine "Chronogram TG.app"`.)
 - **Windows:** if SmartScreen appears, click **More info** → **Run anyway**.
 
-You still need the free Telegram API key from step 4 below — the app tells
-you where to put the `.env` file when you first open it. For videos,
-install ffmpeg (step 3). A packaged app keeps its files (login session,
+You still need the free Telegram API key from step 4 below — the first
+time you open the app it asks for the two values in a small form and
+stores them for you. For videos, install ffmpeg (step 3). A packaged app keeps its files (login session,
 settings, log) in your user data folder: `~/Library/Application Support/
 Chronogram TG` on macOS, `%APPDATA%\Chronogram TG` on Windows.
 
@@ -136,6 +136,12 @@ is missing the app still works — the "Include videos" option is simply
 disabled.
 
 ### 4. Get your Telegram API credentials
+
+Why two logins? This key identifies *the app* to Telegram (every
+self-hosted app needs its own); the phone-number login later signs in
+*the account* whose chats are read. If you use the window app, it asks
+for these two values on first launch and writes the `.env` file for you —
+the manual file below is only needed for the console commands.
 
 1. Go to [my.telegram.org](https://my.telegram.org) and log in with your
    phone number.
