@@ -60,25 +60,30 @@ API_HASH_KEY = "TELEGRAM_API_HASH"
 # fallback used when no settings file exists yet.
 DEFAULT_FILENAME_TEMPLATE = TELEGRAM_TEMPLATE
 
-MISSING_CREDENTIALS_MESSAGE = """\
-Telegram credentials not found.
-
-Chronogram TG needs your own api_id and api_hash to talk to Telegram. They
-are free and take about two minutes to get:
-
-  1. Go to https://my.telegram.org and log in with your phone number.
-  2. Open "API development tools" and fill in the form.
-  3. Create a file named .env at the location shown below, containing:
-
-         TELEGRAM_API_ID=1234567
-         TELEGRAM_API_HASH=0123456789abcdef0123456789abcdef
-
-     (There is an .env.example file you can copy and edit.)
-
-Expected location: {env_file}
-
-See the "Get your Telegram API credentials" section of README.md for the
-step-by-step version."""
+# No hard wraps inside a paragraph: the same text shows in a terminal and
+# in the packaged app's error dialog, and each wraps at its own width - a
+# column-limit line break lands mid-sentence in the dialog. The short
+# source lines below concatenate into single long paragraph lines.
+MISSING_CREDENTIALS_MESSAGE = (
+    "Telegram credentials not found.\n"
+    "\n"
+    "Chronogram TG needs your own api_id and api_hash to talk to Telegram. "
+    "They are free and take about two minutes to get:\n"
+    "\n"
+    "  1. Go to https://my.telegram.org and log in with your phone number.\n"
+    '  2. Open "API development tools" and fill in the form.\n'
+    "  3. Create a file named .env at the location shown below, containing:\n"
+    "\n"
+    "         TELEGRAM_API_ID=1234567\n"
+    "         TELEGRAM_API_HASH=0123456789abcdef0123456789abcdef\n"
+    "\n"
+    "     (There is an .env.example file you can copy and edit.)\n"
+    "\n"
+    "Expected location: {env_file}\n"
+    "\n"
+    'See the "Get your Telegram API credentials" section of README.md for '
+    "the step-by-step version."
+)
 
 
 class ConfigError(Exception):
