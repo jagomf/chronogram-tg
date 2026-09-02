@@ -19,6 +19,13 @@ from chronogram_tg import __version__  # noqa: E402
 APP_NAME = "Chronogram TG"
 ICON = os.path.join(SPECPATH, "icon.icns" if sys.platform == "darwin" else "icon.ico")  # noqa: F821
 
+# With a real Developer ID (CI sets CODESIGN_IDENTITY after importing the
+# certificate) the app is signed for notarization, entitlements included;
+# without one, PyInstaller falls back to its usual ad-hoc signature. BUNDLE
+# inherits both settings from the EXE.
+CODESIGN_IDENTITY = os.environ.get("CODESIGN_IDENTITY") or None
+ENTITLEMENTS = os.path.join(SPECPATH, "entitlements.plist") if CODESIGN_IDENTITY else None  # noqa: F821
+
 # CustomTkinter ships theme files PyInstaller's scanner does not see.
 datas, binaries, hiddenimports = collect_all("customtkinter")
 # The app icon shown inside the window (gui/app.py reads it next to the code).
@@ -40,6 +47,8 @@ exe = EXE(
     name=APP_NAME,
     icon=ICON,
     console=False,  # a window, not a console; the CLI stays a source-tree tool
+    codesign_identity=CODESIGN_IDENTITY,
+    entitlements_file=ENTITLEMENTS,
 )
 coll = COLLECT(exe, a.binaries, a.datas, name=APP_NAME)
 

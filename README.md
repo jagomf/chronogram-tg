@@ -52,11 +52,14 @@ system from the [releases page](https://github.com/jagomf/chronogram-tg/releases
 unzip it, and double-click **Chronogram TG**. The binaries are not signed
 (signing costs money), so the first launch needs one extra step:
 
-- **macOS:** the first launch is blocked ("Apple could not verify…").
-  Click **Done** — *not* "Move to Trash" — then open **System Settings →
-  Privacy & Security**, scroll to the bottom and click **Open Anyway**
-  next to the message about Chronogram TG. Only needed once. (Terminal
-  alternative: `xattr -dr com.apple.quarantine "Chronogram TG.app"`.)
+- **macOS:** releases are signed and notarized, so the app opens normally.
+  Only an unsigned copy — the first release (v0.1.0), one you built
+  yourself, or one from a fork — is blocked on first launch ("Apple could
+  not verify…"): click **Done** — *not* "Move to Trash" — then open
+  **System Settings → Privacy & Security**, scroll to the bottom and click
+  **Open Anyway** next to the message about Chronogram TG. Only needed
+  once. (Terminal alternative:
+  `xattr -dr com.apple.quarantine "Chronogram TG.app"`.)
 - **Windows:** if SmartScreen appears, click **More info** → **Run anyway**.
 
 You still need the free Telegram API key from step 4 below — the app tells
@@ -243,6 +246,14 @@ cross-compile — build on the platform you are targeting:
 inside on Windows. It is a one-folder build on purpose: it starts faster
 than a single file and antivirus software trusts it more. ffmpeg is not
 bundled; the app detects it on the PATH like the source version does.
+
+On macOS, the release workflow signs and notarizes the app when the
+repository's signing secrets exist (`MACOS_CERTIFICATE`,
+`MACOS_CERTIFICATE_PASSWORD`, `NOTARY_API_KEY`, `NOTARY_KEY_ID`,
+`NOTARY_ISSUER_ID`); forks have no access to those secrets and simply
+build unsigned. A local build signs too if you export
+`CODESIGN_IDENTITY="Developer ID Application: …"` before running
+PyInstaller — unset, it is ad-hoc signed like any local build.
 
 ## ⚠️ Security
 

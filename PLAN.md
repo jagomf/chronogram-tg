@@ -405,6 +405,13 @@ all Telegram work; GUI thread communicates via
   (`config.user_data_dir`) because the bundle itself is read-only; from
   the source tree nothing changes. A missing .env in the windowed app
   shows a Tk error dialog instead of printing to a console nobody sees.
+  Signing (added 2026-09-02, owner's Developer subscription): when the
+  repo's secrets exist (MACOS_CERTIFICATE + password, NOTARY_API_KEY +
+  key/issuer ids) the release workflow imports the certificate into an
+  ephemeral keychain, PyInstaller signs with hardened runtime and
+  packaging/entitlements.plist, and notarytool + stapler notarize the
+  bundle before zipping — so released apps open with no Gatekeeper
+  dialog. Forks never see the secrets and fall back to unsigned builds.
 - **Done when:** built app launches on the build machine and completes a
   small download. Cross-platform builds require building on each OS —
   document that; do not attempt cross-compilation.

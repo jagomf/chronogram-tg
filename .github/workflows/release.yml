@@ -52,8 +52,58 @@ jobs:
           EOF
       - name: Install the app and PyInstaller
         run: pip install -r requirements.txt "pyinstaller==6.22.2"
+      - name: Import the signing certificate (macOS)
+        if: runner.os == 'macOS'
+        env:
+          MACOS_CERTIFICATE: ${{ secrets.MACOS_CERTIFICATE }}
+          MACOS_CERTIFICATE_PASSWORD: ${{ secrets.MACOS_CERTIFICATE_PASSWORD }}
+        # Secrets never reach forks: without them this step is a no-op and
+        # the build falls back to PyInstaller's unsigned (ad-hoc) app. The
+        # keychain is ephemeral - it dies with the runner.
+        run: |
+          if [ -z "$MACOS_CERTIFICATE" ]; then
+            echo "No signing certificate available - building unsigned."
+            exit 0
+          fi
+          KEYCHAIN_PASSWORD="$(uuidgen)"
+          echo "$MACOS_CERTIFICATE" | base64 --decode > certificate.p12
+          security create-keychain -p "$KEYCHAIN_PASSWORD" build.keychain
+          security default-keychain -s build.keychain
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" build.keychain
+          security import certificate.p12 -k build.keychain \
+            -P "$MACOS_CERTIFICATE_PASSWORD" -T /usr/bin/codesign
+          security set-key-partition-list -S apple-tool:,apple: \
+            -s -k "$KEYCHAIN_PASSWORD" build.keychain >/dev/null
+          rm certificate.p12
+          IDENTITY=$(security find-identity -v -p codesigning build.keychain \
+            | grep "Developer ID Application" | head -1 | sed 's/.*"\(.*\)"/\1/')
+          if [ -z "$IDENTITY" ]; then
+            echo "The certificate is not a Developer ID Application one." >&2
+            exit 1
+          fi
+          echo "Signing as: $IDENTITY"
+          echo "CODESIGN_IDENTITY=$IDENTITY" >> "$GITHUB_ENV"
       - name: Build the app
         run: pyinstaller packaging/chronogram.spec --noconfirm
+      - name: Notarize and staple (macOS)
+        if: runner.os == 'macOS'
+        env:
+          NOTARY_API_KEY: ${{ secrets.NOTARY_API_KEY }}
+          NOTARY_KEY_ID: ${{ secrets.NOTARY_KEY_ID }}
+          NOTARY_ISSUER_ID: ${{ secrets.NOTARY_ISSUER_ID }}
+        # Apple scans the signed app (takes a few minutes); the staple then
+        # glues the approval to the bundle so Gatekeeper trusts it offline.
+        run: |
+          if [ -z "$CODESIGN_IDENTITY" ] || [ -z "$NOTARY_API_KEY" ]; then
+            echo "Not signed or no notary key - skipping notarization."
+            exit 0
+          fi
+          echo "$NOTARY_API_KEY" > notary-key.p8
+          ditto -c -k --keepParent "dist/Chronogram TG.app" notarize.zip
+          xcrun notarytool submit notarize.zip --wait \
+            --key notary-key.p8 --key-id "$NOTARY_KEY_ID" --issuer "$NOTARY_ISSUER_ID"
+          xcrun stapler staple "dist/Chronogram TG.app"
+          rm notary-key.p8 notarize.zip
       - name: Zip the app (macOS)
         if: runner.os == 'macOS'
         # ditto preserves the bundle's structure and permissions, which a
