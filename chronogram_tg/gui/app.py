@@ -19,6 +19,7 @@ from ..config import DEFAULT_DOWNLOAD_DIR, Credentials, load_settings, save_sett
 from ..downloader import DownloadControl, DownloadError, Summary, download_chat, human_size
 from ..metadata import detect_ffmpeg
 from ..tg import Chat, SessionRevokedError, TelegramError, TelegramSession
+from .about import AboutWindow
 from .bridge import TelegramBridge, poll_future
 from .chat_picker import FALLBACK_EMOJI, KIND_EMOJI, ChatPicker, ellipsise
 from .date_range import DATE_FORMAT, DateRangeWindow
@@ -200,14 +201,25 @@ class ChronogramApp(ctk.CTk):
 
         header = ctk.CTkFrame(self, fg_color="transparent")
         header.grid(row=row, column=0, columnspan=3, sticky="ew", padx=PAD, pady=(PAD, 0))
-        header.grid_columnconfigure(0, weight=1)
+        header.grid_columnconfigure(2, weight=1)  # spacer between ℹ️ and ⚙️
         ctk.CTkLabel(header, text="Chronogram TG", font=ctk.CTkFont(size=18, weight="bold")).grid(
             row=0, column=0, sticky="w"
         )
+        # About needs no session and no machinery, so it is always alive.
+        self.about_button = ctk.CTkButton(
+            header,
+            text="ℹ️",
+            width=32,
+            fg_color="transparent",
+            hover=False,
+            font=ctk.CTkFont(size=16),
+            command=self._open_about,
+        )
+        self.about_button.grid(row=0, column=1, sticky="w", padx=(2, 0))
         self.settings_button = DimButton(
             header, text="⚙️", width=40, font=ctk.CTkFont(size=20), state="disabled"
         )
-        self.settings_button.grid(row=0, column=1, sticky="e")
+        self.settings_button.grid(row=0, column=3, sticky="e")
         row += 1
 
         self.banner = None
@@ -593,6 +605,9 @@ class ChronogramApp(ctk.CTk):
         friendly = isinstance(error, (TelegramError, DownloadError))
         prefix = "" if friendly else f"{type(error).__name__}: "
         messagebox.showerror("Chronogram TG", f"{prefix}{error}")
+
+    def _open_about(self) -> None:
+        AboutWindow(self)
 
     # ── settings and logout (task 11) ───────────────────────────────
 

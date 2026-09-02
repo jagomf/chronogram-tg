@@ -37,6 +37,7 @@ SCENARIOS = {
             application.settings_button,
         ):
             assert control.cget("state") == "disabled", "skeleton controls must start disabled"
+        assert application.about_button.cget("state") == "normal", "About is always alive"
         from chronogram_tg.gui.widgets import DISABLED_FG
         button = application.chat_button
         assert button.cget("fg_color") == DISABLED_FG, "disabled buttons dim fully"
@@ -328,6 +329,28 @@ SCENARIOS = {
             raise AssertionError("timed out waiting for the login window")
         application.destroy()
         bridge.stop()
+    """,
+    "about": """
+        import customtkinter as ctk
+        from chronogram_tg import __version__
+        from chronogram_tg.gui.about import AboutWindow
+
+        root = ctk.CTk()
+        root.withdraw()
+        window = AboutWindow(root)
+        root.update()
+        assert f"Version {__version__}" == window.version_label.cget("text")
+        assert "Jago" in window.creator_label.cget("text")
+        assert window.lunadevel_link.cget("text") == "LunaDevel"
+        assert window.lunadevel_link.cget("cursor") == "hand2", "the link shows the hand"
+        credits = window.licences_label.cget("text")
+        assert "MIT license" in credits, "the app's own licence is stated"
+        for package in ("Telethon", "customtkinter", "piexif", "python-dotenv"):
+            assert package in credits, f"{package} must be credited"
+        window.destroy()
+        root.update()
+        assert not window.winfo_exists()
+        root.destroy()
     """,
     "settings": """
         import customtkinter as ctk
