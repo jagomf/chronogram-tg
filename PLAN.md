@@ -7,14 +7,14 @@
 live by the owner on 2026-08-31, and tasks 10 and 11 on 2026-09-01 (pause,
 cancel, resume and the full GUI run on the throwaway chat; presets,
 invalid patterns and logout→login in settings). Task 12's hardening pass
-and clean-machine walkthrough are done (2026-09-01). Task 13 is built
-(2026-09-02): the PyInstaller recipe lives in packaging/, a release
-workflow attaches macOS/Windows zips to every v* tag, and the macOS build
-was verified locally (--version runs; data resolves to Application
-Support). Remaining owner checks: task 12's final acceptance (real family
-chat, Google Photos date spot-check, copy onto the phone) and task 13's
-(double-click the built app, complete a small download, push a v* tag for
-the first release). Task 2 confirmed live on 2026-08-23;
+and clean-machine walkthrough are done (2026-09-01). Task 13 shipped:
+releases v1.0.0 (2026-09-02, unsigned) and v1.0.1 (2026-09-02, macOS app
+signed with the owner's Developer ID and notarized — Apple accepted,
+staple verified in the workflow log) are published with macOS and Windows
+zips built by the release workflow. Remaining owner check: task 12's
+final acceptance (real family chat, Google Photos date spot-check, copy
+onto the phone) — the only thing left in the plan. Task 2 confirmed live
+on 2026-08-23;
 task 5 exercised live by the owner on a 161-item/6.5 GB test chat through
 2026-08-24 (downloads, cancel, per-file and in-file resume, flood waits) —
 the Google Photos date spot-check folds into task 12's acceptance. ffmpeg
