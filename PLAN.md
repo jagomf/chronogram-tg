@@ -3,14 +3,18 @@
 **Audience:** the implementing agent (Claude Opus 5).
 **Read first:** [AGENTS.md](AGENTS.md) and [docs/DECISIONS.md](docs/DECISIONS.md).
 
-**Progress:** tasks 1–12 implemented; tasks 8 and 9 were confirmed live by
-the owner on 2026-08-31, and tasks 10 and 11 on 2026-09-01 (pause, cancel,
-resume and the full GUI run on the throwaway chat; presets, invalid
-patterns and logout→login in settings). Task 12's hardening pass and
-clean-machine walkthrough are done (2026-09-01); what remains is the
-owner's final acceptance: the real family chat, the Google Photos date
-spot-check and the copy onto the phone. Task 2 confirmed live on
-2026-08-23;
+**Progress:** all tasks (1–13) implemented; tasks 8 and 9 were confirmed
+live by the owner on 2026-08-31, and tasks 10 and 11 on 2026-09-01 (pause,
+cancel, resume and the full GUI run on the throwaway chat; presets,
+invalid patterns and logout→login in settings). Task 12's hardening pass
+and clean-machine walkthrough are done (2026-09-01). Task 13 is built
+(2026-09-02): the PyInstaller recipe lives in packaging/, a release
+workflow attaches macOS/Windows zips to every v* tag, and the macOS build
+was verified locally (--version runs; data resolves to Application
+Support). Remaining owner checks: task 12's final acceptance (real family
+chat, Google Photos date spot-check, copy onto the phone) and task 13's
+(double-click the built app, complete a small download, push a v* tag for
+the first release). Task 2 confirmed live on 2026-08-23;
 task 5 exercised live by the owner on a 161-item/6.5 GB test chat through
 2026-08-24 (downloads, cancel, per-file and in-file resume, flood waits) —
 the Google Photos date spot-check folds into task 12's acceptance. ffmpeg
@@ -392,6 +396,15 @@ all Telegram work; GUI thread communicates via
   `--collect-all customtkinter`; ffmpeg stays external (still detected on
   PATH); unsigned binaries trigger Gatekeeper/SmartScreen warnings —
   document the right-click-open workaround rather than paying for signing.
+  As built (2026-09-02): the recipe (spec, launcher, icns/ico icons) lives
+  in `packaging/` and only the recipe is committed — the binaries are
+  attached to GitHub releases by `.github/workflows/release.yml`, which
+  builds on macOS and Windows whenever a `v*` tag is pushed (the repo is
+  public, so those runners are free). A frozen app (sys.frozen) keeps its
+  .env, session, settings and log in the user-data folder
+  (`config.user_data_dir`) because the bundle itself is read-only; from
+  the source tree nothing changes. A missing .env in the windowed app
+  shows a Tk error dialog instead of printing to a console nobody sees.
 - **Done when:** built app launches on the build machine and completes a
   small download. Cross-platform builds require building on each OS —
   document that; do not attempt cross-compilation.

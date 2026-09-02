@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import json
 import os
+import sys
 from dataclasses import asdict, dataclass
 from pathlib import Path
 
@@ -16,11 +17,37 @@ from dotenv import dotenv_values
 
 from .naming import TELEGRAM_TEMPLATE, TemplateError, validate_template
 
+APP_NAME = "Chronogram TG"
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
-ENV_FILE = PROJECT_ROOT / ".env"
-SESSION_FILE = PROJECT_ROOT / "chronogram.session"
-SETTINGS_FILE = PROJECT_ROOT / "settings.json"
-LOG_FILE = PROJECT_ROOT / "chronogram.log"
+
+
+def user_data_dir(platform: str | None = None, environ=None) -> Path:
+    """The platform's folder for an app's own files (session, settings, log)."""
+    platform = sys.platform if platform is None else platform
+    environ = os.environ if environ is None else environ
+    if platform == "darwin":
+        return Path.home() / "Library" / "Application Support" / APP_NAME
+    if platform.startswith("win"):
+        base = environ.get("APPDATA")
+        return (Path(base) if base else Path.home() / "AppData" / "Roaming") / APP_NAME
+    base = environ.get("XDG_DATA_HOME")
+    return (Path(base) if base else Path.home() / ".local" / "share") / APP_NAME
+
+
+# Running from the source tree, everything lives next to the code, which is
+# what a developer expects. A packaged app (PyInstaller sets sys.frozen)
+# must not write inside its own bundle - macOS mounts it read-only - so its
+# files live in the user's application-data folder instead.
+if getattr(sys, "frozen", False):
+    DATA_DIR = user_data_dir()
+    DATA_DIR.mkdir(parents=True, exist_ok=True)
+else:
+    DATA_DIR = PROJECT_ROOT
+
+ENV_FILE = DATA_DIR / ".env"
+SESSION_FILE = DATA_DIR / "chronogram.session"
+SETTINGS_FILE = DATA_DIR / "settings.json"
+LOG_FILE = DATA_DIR / "chronogram.log"
 
 # The destination offered when none was ever chosen. Not created until a
 # download actually starts. ~/Downloads exists on macOS, Windows and Linux.
@@ -41,7 +68,7 @@ are free and take about two minutes to get:
 
   1. Go to https://my.telegram.org and log in with your phone number.
   2. Open "API development tools" and fill in the form.
-  3. Create a file named .env in the project folder containing:
+  3. Create a file named .env at the location shown below, containing:
 
          TELEGRAM_API_ID=1234567
          TELEGRAM_API_HASH=0123456789abcdef0123456789abcdef

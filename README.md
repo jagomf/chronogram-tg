@@ -14,8 +14,8 @@ the phone's Telegram gallery folders and Google Photos will back them up
 and sort them in their true chronological place.
 
 > **Project status:** fully functional — the window app and the console
-> commands both work end to end. Double-clickable packaged executables are
-> the one remaining (optional) item in [PLAN.md](PLAN.md).
+> commands both work end to end, and every release ships double-clickable
+> apps for macOS and Windows (see below).
 
 ## How it works
 
@@ -47,8 +47,24 @@ and sort them in their true chronological place.
 
 ## Installation
 
-Open a terminal (**Terminal** app on macOS, **PowerShell** on Windows, any
-terminal on Linux) and paste these commands one by one.
+**The no-terminal way (macOS and Windows):** download the zip for your
+system from the [releases page](https://github.com/jagomf/chronogram-tg/releases),
+unzip it, and double-click **Chronogram TG**. The binaries are not signed
+(signing costs money), so the first launch needs one extra step:
+
+- **macOS:** right-click the app → **Open** → **Open** again. Only needed
+  once.
+- **Windows:** if SmartScreen appears, click **More info** → **Run anyway**.
+
+You still need the free Telegram API key from step 4 below — the app tells
+you where to put the `.env` file when you first open it. For videos,
+install ffmpeg (step 3). A packaged app keeps its files (login session,
+settings, log) in your user data folder: `~/Library/Application Support/
+Chronogram TG` on macOS, `%APPDATA%\Chronogram TG` on Windows.
+
+**The from-source way (any platform):** open a terminal (**Terminal** app
+on macOS, **PowerShell** on Windows, any terminal on Linux) and paste these
+commands one by one.
 
 ### 1. Get the code
 
@@ -207,6 +223,23 @@ saving to the gallery: `IMG_20240815_143022_123.jpg` for photos and
 message's, in UTC, with milliseconds used to avoid collisions. The settings
 dialog offers other presets (Google Pixel camera style `PXL_...`, plain
 date) and a free template with live preview.
+
+## Advanced: building the packaged app yourself
+
+Releases are built automatically by a GitHub Actions workflow when a `v*`
+tag is pushed, but the same build works locally. PyInstaller does not
+cross-compile — build on the platform you are targeting:
+
+```bash
+.venv/bin/pip install -r requirements-dev.txt
+.venv/bin/pyinstaller packaging/chronogram.spec --noconfirm
+```
+
+(Windows: `.venv\Scripts\` prefix.) The result lands in `dist/` —
+`Chronogram TG.app` on macOS, a `Chronogram TG` folder with the `.exe`
+inside on Windows. It is a one-folder build on purpose: it starts faster
+than a single file and antivirus software trusts it more. ffmpeg is not
+bundled; the app detects it on the PATH like the source version does.
 
 ## ⚠️ Security
 

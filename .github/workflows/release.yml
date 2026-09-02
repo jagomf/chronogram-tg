@@ -1,0 +1,74 @@
+# Packaged executables for each release (PLAN.md task 13).
+#
+# Push a tag like v0.1.0 and this builds the double-clickable app on macOS
+# and Windows with PyInstaller, then attaches both zips to the GitHub
+# release for that tag. The binaries never live in the repository - only
+# the recipe does (packaging/). The repo is public, so these runners cost
+# no Actions minutes.
+
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write # gh release create/upload
+
+jobs:
+  build:
+    name: Build (${{ matrix.label }})
+    strategy:
+      matrix:
+        include:
+          - os: macos-latest
+            label: macos
+          - os: windows-latest
+            label: windows
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.14"
+      - name: Check the tag matches the code's version
+        shell: bash
+        # The tag names the release and the zips; __version__ is what the
+        # app shows in --version, the About window and the macOS bundle.
+        # Refuse to publish a release where the two disagree.
+        run: |
+          python - "${{ github.ref_name }}" <<'EOF'
+          import re
+          import sys
+
+          tag = sys.argv[1]
+          source = open("chronogram_tg/__init__.py", encoding="utf-8").read()
+          version = re.search(r'__version__\s*=\s*"([^"]+)"', source).group(1)
+          if tag != f"v{version}":
+              sys.exit(f"Tag {tag} does not match __version__ = {version!r} "
+                       f"(expected tag v{version}). Bump chronogram_tg/__init__.py "
+                       f"first, then tag that commit.")
+          print(f"Tag {tag} matches __version__ {version!r}.")
+          EOF
+      - name: Install the app and PyInstaller
+        run: pip install -r requirements.txt "pyinstaller==6.22.2"
+      - name: Build the app
+        run: pyinstaller packaging/chronogram.spec --noconfirm
+      - name: Zip the app (macOS)
+        if: runner.os == 'macOS'
+        # ditto preserves the bundle's structure and permissions, which a
+        # plain zip of a .app does not.
+        run: ditto -c -k --keepParent "dist/Chronogram TG.app" "chronogram-tg-${{ github.ref_name }}-macos.zip"
+      - name: Zip the app (Windows)
+        if: runner.os == 'Windows'
+        run: Compress-Archive -Path "dist/Chronogram TG" -DestinationPath "chronogram-tg-${{ github.ref_name }}-windows.zip"
+      - name: Attach to the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        # Both matrix jobs race to create the release; whoever loses just
+        # uploads its zip to the one that already exists.
+        run: |
+          gh release create "${{ github.ref_name }}" --verify-tag --generate-notes \
+            --title "Chronogram TG ${{ github.ref_name }}" || true
+          gh release upload "${{ github.ref_name }}" chronogram-tg-*.zip --clobber

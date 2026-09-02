@@ -1,4 +1,5 @@
 import json
+from pathlib import Path
 
 import pytest
 
@@ -82,8 +83,6 @@ def test_settings_fall_back_to_defaults_when_absent(tmp_path):
 
 
 def test_the_default_download_dir_is_chronogram_inside_downloads():
-    from pathlib import Path
-
     assert config.DEFAULT_DOWNLOAD_DIR == Path.home() / "Downloads" / "Chronogram"
 
 
@@ -108,3 +107,39 @@ def test_unknown_settings_keys_are_ignored(tmp_path):
     path.write_text(json.dumps({"filename_template": "{date}", "legacy": "x"}), encoding="utf-8")
 
     assert load_settings(path) == Settings(filename_template="{date}")
+
+
+# ── user_data_dir (where a packaged app keeps its files) ─────────────
+
+
+def test_macos_data_dir_is_application_support():
+    folder = config.user_data_dir(platform="darwin", environ={})
+
+    assert folder == Path.home() / "Library" / "Application Support" / "Chronogram TG"
+
+
+def test_windows_data_dir_follows_appdata():
+    folder = config.user_data_dir(platform="win32", environ={"APPDATA": "C:/Users/mum/Roaming"})
+
+    assert folder == Path("C:/Users/mum/Roaming") / "Chronogram TG"
+
+
+def test_windows_data_dir_survives_a_missing_appdata():
+    folder = config.user_data_dir(platform="win32", environ={})
+
+    assert folder == Path.home() / "AppData" / "Roaming" / "Chronogram TG"
+
+
+def test_linux_data_dir_honours_xdg_and_falls_back_to_local_share():
+    with_xdg = config.user_data_dir(platform="linux", environ={"XDG_DATA_HOME": "/xdg/data"})
+    without = config.user_data_dir(platform="linux", environ={})
+
+    assert with_xdg == Path("/xdg/data") / "Chronogram TG"
+    assert without == Path.home() / ".local" / "share" / "Chronogram TG"
+
+
+def test_running_from_the_source_tree_keeps_files_next_to_the_code():
+    # This test suite itself runs unfrozen, so the module-level constants
+    # must already point at the project root.
+    assert config.DATA_DIR == config.PROJECT_ROOT
+    assert config.SESSION_FILE.parent == config.PROJECT_ROOT

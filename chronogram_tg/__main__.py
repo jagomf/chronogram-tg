@@ -308,6 +308,25 @@ def run_gui(credentials: Credentials) -> int:
     return 0
 
 
+def show_startup_error(message: str) -> None:
+    """A dialog for configuration trouble when there is no console.
+
+    A double-clicked packaged app has nowhere to print: on Windows a
+    windowed executable has no stdout at all, so without this the app
+    would just silently not open.
+    """
+    try:
+        import tkinter
+        from tkinter import messagebox
+
+        root = tkinter.Tk()
+        root.withdraw()
+        messagebox.showerror("Chronogram TG", message)
+        root.destroy()
+    except Exception:
+        pass  # no Tk either: the console print below is all there is
+
+
 def main(argv: list[str] | None = None) -> int:
     arguments = build_parser().parse_args(argv)
     configure_logging()
@@ -315,6 +334,8 @@ def main(argv: list[str] | None = None) -> int:
     try:
         credentials = load_credentials()
     except ConfigError as error:
+        if arguments.command is None:
+            show_startup_error(str(error))
         print(error, file=sys.stderr)
         return 1
 

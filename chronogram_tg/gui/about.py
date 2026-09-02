@@ -76,6 +76,7 @@ class AboutWindow(ctk.CTkToplevel):
         )
         self.version_label = ctk.CTkLabel(self, text=f"Version {__version__}")
         self.version_label.grid(row=1, column=0, padx=PAD * 2)
+
         def link(parent, text: str, url: str) -> ctk.CTkLabel:
             label = ctk.CTkLabel(parent, text=text, text_color=LINK_COLOR, cursor="hand2")
             label.bind("<Button-1>", lambda _event: webbrowser.open(url))
