@@ -38,15 +38,17 @@ and sort them in their true chronological place.
   installer includes Tk, the toolkit the app's window needs. (Pythons from
   pyenv or Homebrew often omit it; you can check yours with
   `python3 -c "import tkinter"`, which should print nothing at all. On a
-  Homebrew Python, `brew install python-tk@3.14` adds it.)
+  Homebrew Python, `brew install python-tk@3.14` adds it.) On Linux,
+  Python is usually preinstalled but Tk comes as a separate package:
+  `sudo apt install python3-tk` on Debian/Ubuntu.
 - **ffmpeg** — *only if you want videos*. Photos work without it.
 - A **Telegram API key** (`api_id` + `api_hash`) — free, takes 2 minutes,
   instructions below.
 
 ## Installation
 
-Open a terminal (**Terminal** app on macOS, **PowerShell** on Windows) and
-paste these commands one by one.
+Open a terminal (**Terminal** app on macOS, **PowerShell** on Windows, any
+terminal on Linux) and paste these commands one by one.
 
 ### 1. Get the code
 
@@ -63,7 +65,7 @@ into the unzipped folder instead.)
 This puts the app's dependencies in a `.venv` folder inside the project,
 without touching the rest of your system.
 
-macOS:
+macOS / Linux:
 
 ```bash
 python3 -m venv .venv
@@ -80,7 +82,7 @@ py -m venv .venv
 > **The `.venv/bin/` prefix is not a typo.** It is what tells your computer
 > to use the project's own Python instead of whichever one it would pick by
 > default. Keep using it — the app is always run as
-> `.venv/bin/python -m chronogram_tg` (macOS) or
+> `.venv/bin/python -m chronogram_tg` (macOS and Linux) or
 > `.venv\Scripts\python -m chronogram_tg` (Windows), from the project
 > folder. There is nothing to "activate" and nothing to remember between
 > sessions. (If you already know about `source .venv/bin/activate`, it
@@ -99,6 +101,12 @@ Windows (PowerShell):
 
 ```powershell
 winget install --id Gyan.FFmpeg
+```
+
+Linux (Debian/Ubuntu):
+
+```bash
+sudo apt install ffmpeg
 ```
 
 Then close and reopen the terminal. Verify with `ffmpeg -version`. If ffmpeg
@@ -122,7 +130,7 @@ TELEGRAM_API_HASH=0123456789abcdef0123456789abcdef
 
 ## Usage
 
-Open a terminal in the project folder and run — macOS:
+Open a terminal in the project folder and run — macOS / Linux:
 
 ```bash
 .venv/bin/python -m chronogram_tg
