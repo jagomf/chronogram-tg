@@ -7,6 +7,7 @@ and the settings dialog with logout (task 11).
 
 from __future__ import annotations
 
+import os
 import threading
 from datetime import datetime, timedelta
 from pathlib import Path
@@ -125,10 +126,12 @@ def shorten_path(path: Path) -> str:
     """A folder path fit for a one-line label: home as ~, tail preserved.
 
     Paths are cut from the front - the deepest folders are what tells a
-    destination apart, not the volume prefix.
+    destination apart, not the volume prefix. The separator is the
+    platform's own, so the label reads like the paths users see elsewhere
+    (backslashes on Windows).
     """
     try:
-        text = "~/" + str(path.relative_to(Path.home()))
+        text = "~" + os.sep + str(path.relative_to(Path.home()))
     except ValueError:
         text = str(path)
     return text if len(text) <= MAX_PATH_CHARS else "…" + text[-(MAX_PATH_CHARS - 1) :]

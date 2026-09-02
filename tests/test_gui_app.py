@@ -1,5 +1,6 @@
 """The main window's pure logic; the widgets themselves live in smoke_gui.py."""
 
+import os
 from pathlib import Path
 
 from chronogram_tg.downloader import Summary
@@ -13,14 +14,20 @@ from chronogram_tg.gui.app import (
 )
 
 # ── shorten_path ─────────────────────────────────────────────────────
+# The label uses the platform's own separator, so the expectations do too:
+# forward slashes here, backslashes on the Windows CI runners.
 
 
 def test_a_path_under_home_reads_as_tilde():
-    assert shorten_path(Path.home() / "Downloads" / "Chronogram") == "~/Downloads/Chronogram"
+    path = Path.home() / "Downloads" / "Chronogram"
+
+    assert shorten_path(path) == f"~{os.sep}Downloads{os.sep}Chronogram"
 
 
 def test_a_path_outside_home_is_shown_as_is():
-    assert shorten_path(Path("/Volumes/USB/photos")) == "/Volumes/USB/photos"
+    path = Path("/Volumes/USB/photos")
+
+    assert shorten_path(path) == str(path)
 
 
 def test_a_long_path_is_cut_from_the_front():
@@ -29,7 +36,7 @@ def test_a_long_path_is_cut_from_the_front():
     shortened = shorten_path(path)
 
     assert shortened.startswith("…")
-    assert shortened.endswith("/photos")
+    assert shortened.endswith(f"{os.sep}photos")
     assert len(shortened) == MAX_PATH_CHARS
 
 
